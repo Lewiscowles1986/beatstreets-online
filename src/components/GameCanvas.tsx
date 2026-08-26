@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Game, Scene, SceneManager, KonamiDetector, Barrel, Stick, Chain, HealthPowerup, ExtraLifePowerup } from '@beatstreets/engine';
+import { Game, Scene, SceneManager, KonamiDetector, Barrel, Stick, Chain, HealthPowerup, ExtraLifePowerup, WebSocketController } from '@beatstreets/engine';
 import { loadGameSpec } from '../game/data';
 import { CanvasRender } from '../game/render/canvas-render';
 import { WebGLRender } from '../game/render/webgl-render';
@@ -19,6 +19,8 @@ export interface GameCanvasProps {
   debug?: boolean;
   /** Force the 2D renderer even when WebGL is available. */
   forceCanvas2D?: boolean;
+  /** Optional WebSocket URL to drive the game remotely (WebSocketController). */
+  wsUrl?: string;
 }
 
 /**
@@ -27,12 +29,12 @@ export interface GameCanvasProps {
  * WebGL backend (falling back to Canvas 2D when WebGL is unavailable). This is the
  * real app surface the shell mounts. Sprites are preloaded first.
  */
-export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false }: GameCanvasProps) {
+export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl }: GameCanvasProps) {
   const { ready } = useSpriteAssets();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<Host | null>(null);
   if (hostRef.current === null) {
-    hostRef.current = new Host(width, height, stage, debug, forceCanvas2D);
+    hostRef.current = new Host(width, height, stage, debug, forceCanvas2D, wsUrl);
   }
   const [ov, setOv] = useState(() => ({
     scene: 'title' as string,
@@ -172,13 +174,14 @@ class Host {
     this.onSceneChange?.();
   }
 
-  constructor(width: number, height: number, stage: number, debug: boolean, forceCanvas2D: boolean) {
+  constructor(width: number, height: number, stage: number, debug: boolean, forceCanvas2D: boolean, wsUrl?: string) {
     this.width = width;
     this.height = height;
     this.stage = stage;
     this.debug = debug;
     this.isWebGL = !forceCanvas2D;
-    this.controls = makeControls();
+    // Optionally attach a WebSocket controller (driven remotely).
+    this.controls = makeControls(wsUrl ? createWebSocketController(wsUrl) : undefined);
     this.game = new Game(loadGameSpec(), this.controls);
 
     const title = new (class extends Scene {
@@ -504,15 +507,17 @@ interface DisposableControls {
   dispose(): void;
 }
 
-function makeControls(): DisposableControls {
+function makeControls(ws?: WebSocketController): DisposableControls {
   const kb = makeKeyboardControls();
   const pad = makeGamepadControls();
-  // Merge: keyboard and gamepad both feed held/pressed/axis; edge state is the OR.
+  // Merge: keyboard, gamepad and (optional) WebSocket all feed held/pressed/axis.
+  const wsHeld = (b: number) => ws?.held(b as 0 | 1 | 2 | 3) ?? false;
+  const wsPressed = (b: number) => ws?.pressed(b as 0 | 1 | 2 | 3) ?? false;
   return {
-    getX: () => clampUnit(kb.getX() + pad.getX()),
-    getY: () => clampUnit(kb.getY() + pad.getY()),
-    held: (b: number) => kb.held(b) || pad.held(b),
-    pressed: (b: number) => kb.pressed(b) || pad.pressed(b),
+    getX: () => clampUnit(kb.getX() + pad.getX() + (ws?.getX() ?? 0)),
+    getY: () => clampUnit(kb.getY() + pad.getY() + (ws?.getY() ?? 0)),
+    held: (b: number) => kb.held(b) || pad.held(b) || wsHeld(b),
+    pressed: (b: number) => kb.pressed(b) || pad.pressed(b) || wsPressed(b),
     rawPressed: (k: string) => kb.rawPressed(k),
     directions: () => kb.directions(),
     escPressed: () => kb.escPressed(),
@@ -525,6 +530,13 @@ function makeControls(): DisposableControls {
 
 function clampUnit(v: number): number {
   return Math.max(-1, Math.min(1, v));
+}
+
+/** Create a WebSocketController attached to a browser WebSocket at the given URL. */
+function createWebSocketController(url: string): WebSocketController {
+  const socket = new WebSocket(url);
+  const controller = new WebSocketController('websocket', socket as unknown as Parameters<WebSocketController['attach']>[0]);
+  return controller;
 }
 
 /** Gamepad adapter: polls navigator.getGamepads() and maps to held/pressed/axis. */
