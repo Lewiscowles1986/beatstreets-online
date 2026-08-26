@@ -66,13 +66,23 @@ export function StageList({
 
   if (!ready) {
     return (
-      <div style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontFamily: 'monospace' }}>
+      <div
+        style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontFamily: 'monospace' }}
+        aria-busy="true"
+        role="status"
+      >
         loading sprites…
       </div>
     );
   }
 
-  return <canvas ref={canvasRef} aria-label={`${shown.length} stages composed end-to-end`} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      role="img"
+      aria-label={`${shown.length} stages composed end-to-end (${shown.reduce((n, s) => n + s.enemies.length, 0)} enemies total)`}
+    />
+  );
 }
 
 function buildOffsets(stages: Stage[]): number[] {

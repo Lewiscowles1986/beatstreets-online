@@ -1,6 +1,7 @@
 import { CanvasRender } from '../game/render/canvas-render';
 import { useCanvas } from './useCanvas';
 import { useSpriteAssets } from './useSpriteAssets';
+import { VisuallyHidden } from './VisuallyHidden';
 import { clamp } from '@beatstreets/engine';
 
 export interface HUDProps {
@@ -70,13 +71,36 @@ export function Hud({
 
   if (!ready) {
     return (
-      <div style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontFamily: 'monospace' }}>
+      <div
+        style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontFamily: 'monospace' }}
+        aria-busy="true"
+        role="status"
+      >
         loading sprites…
       </div>
     );
   }
 
-  return <canvas ref={canvasRef} aria-label="HUD status bar" />;
+  const healthRatio = clamp(health / maxHealth, 0, 1);
+  const staminaRatio = clamp(stamina / maxStamina, 0, 1);
+  const statusText = `Health ${Math.round(healthRatio * 100)} percent, stamina ${Math.round(staminaRatio * 100)} percent, ${lives} lives, score ${score}`;
+
+  return (
+    <div role="group" aria-label="Player status bar">
+      <canvas
+        ref={canvasRef}
+        role="img"
+        aria-label={statusText}
+        aria-valuemin={0}
+        aria-valuemax={maxHealth}
+        aria-valuenow={health}
+      />
+      {/* Screen-reader announcement of the current values (canvas is not read). */}
+      <VisuallyHidden role="status" live="polite">
+        {statusText}
+      </VisuallyHidden>
+    </div>
+  );
 }
 
 interface SrcRect {

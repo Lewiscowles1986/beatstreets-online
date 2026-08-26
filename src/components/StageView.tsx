@@ -57,11 +57,21 @@ export function StageView({
 
   if (!ready) {
     return (
-      <div style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontFamily: 'monospace' }}>
+      <div
+        style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontFamily: 'monospace' }}
+        aria-busy="true"
+        role="status"
+      >
         loading sprites…
       </div>
     );
   }
 
-  return <canvas ref={canvasRef} aria-label={`stage ${stage.max_scroll_x}`} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      role="img"
+      aria-label={`Stage ${stage.max_scroll_x}: ${stage.enemies.length} enemies, ${stage.weapons.length} weapons, ${stage.powerups.length} powerups`}
+    />
+  );
 }

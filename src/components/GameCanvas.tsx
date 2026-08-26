@@ -48,13 +48,23 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
 
   if (!ready) {
     return (
-      <div style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontFamily: 'monospace' }}>
+      <div
+        style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontFamily: 'monospace' }}
+        aria-busy="true"
+        role="status"
+      >
         loading sprites…
       </div>
     );
   }
 
-  return <canvas ref={canvasRef} aria-label="beat streets game" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      role="application"
+      aria-label={`Beat Streets game, stage ${stage}. Use arrow keys to move and space to attack.`}
+    />
+  );
 }
 
 type Renderer = CanvasRender | WebGLRender;

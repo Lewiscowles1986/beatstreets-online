@@ -116,20 +116,26 @@ export function KonamiPanel({ buttonKeys = DEFAULT_BUTTONS }: KonamiPanelProps) 
   const expected = KONAMI[progress] ?? '—';
 
   return (
-    <div style={{ fontFamily: 'monospace', border: '1px solid #444', padding: 16, maxWidth: 560 }}>
+    <section aria-label="Input and Konami code panel" style={{ fontFamily: 'monospace', border: '1px solid #444', padding: 16, maxWidth: 560 }}>
       <h3 style={{ margin: '0 0 8px' }}>Input + Konami panel</h3>
       <p style={{ fontSize: 12, margin: '0 0 12px', color: '#aaa' }}>
         Press arrow keys and {buttonKeys.join(', ')}. Enter the Konami code to unlock.
       </p>
-      <div>Axis: x={axis.x.toFixed(1)} y={axis.y.toFixed(1)}</div>
-      <div>Held buttons: [{held.join(', ')}]</div>
-      <div>
-        Konami: next = <strong>{expected}</strong> (progress {progress}/{KONAMI.length})
+      <div role="group" aria-label="Controller state">
+        <div>Axis: x={axis.x.toFixed(1)} y={axis.y.toFixed(1)}</div>
+        <div>Held buttons: [{held.join(', ')}]</div>
+        <div>
+          Konami: next = <strong>{expected}</strong> (progress {progress}/{KONAMI.length})
+        </div>
+        <div>Last token: {lastToken || '—'}</div>
       </div>
-      <div>Last token: {lastToken || '—'}</div>
-      <div style={{ marginTop: 8, fontWeight: 700, color: unlocked ? '#7dff7d' : '#999' }}>
-        {unlocked ? 'UNLOCKED 🎉' : 'locked'}
+      <div
+        role="status"
+        aria-live="polite"
+        style={{ marginTop: 8, fontWeight: 700, color: unlocked ? '#7dff7d' : '#999' }}
+      >
+        {unlocked ? 'UNLOCKED' : 'locked'}
       </div>
-    </div>
+    </section>
   );
 }

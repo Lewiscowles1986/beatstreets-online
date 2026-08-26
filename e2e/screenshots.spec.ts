@@ -14,6 +14,7 @@ const STORIES: Array<{ id: string; file: string }> = [
   { id: 'game-stageview--stage-fourteen-portal', file: 'stage-fourteen-portal.png' },
   { id: 'game-hud--full-health', file: 'hud-full-health.png' },
   { id: 'game-hud--low-health', file: 'hud-low-health.png' },
+  { id: 'game-hud--empty', file: 'hud-empty.png' },
   { id: 'game-stagelist--first-five-stages', file: 'stagelist-first-five.png' },
   { id: 'game-stagelist--late-game-stages', file: 'stagelist-late-game.png' },
   { id: 'game-konamipanel--default-keyboard', file: 'konami-panel.png' },
