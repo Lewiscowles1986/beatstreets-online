@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Game, Scene, SceneManager, KonamiDetector } from '@beatstreets/engine';
+import { Game, Scene, SceneManager, KonamiDetector, Barrel, Stick, Chain, HealthPowerup, ExtraLifePowerup } from '@beatstreets/engine';
 import { loadGameSpec } from '../game/data';
 import { CanvasRender } from '../game/render/canvas-render';
 import { WebGLRender } from '../game/render/webgl-render';
@@ -316,6 +316,16 @@ class Host {
       render.blitSprite(o.determineSprite(), o.vpos.x - this.game.scrollOffset.x, o.vpos.y);
       if (this.debug) render.drawCircle(o.vpos.x - this.game.scrollOffset.x, o.vpos.y, 5, '#ff0');
     }
+    // Weapons (barrels / stick / chain).
+    for (const w of this.game.weapons) {
+      const sprite = weaponSprite(w);
+      if (sprite) render.blitSprite(sprite, w.vpos.x - this.game.scrollOffset.x, w.vpos.y);
+    }
+    // Powerups.
+    for (const p of this.game.powerups) {
+      const sprite = powerupSprite(p);
+      if (sprite) render.blitSprite(sprite, p.vpos.x - this.game.scrollOffset.x, p.vpos.y);
+    }
     render.drawText(`Stage ${this.game.stageIndex + 1} · HP ${this.game.player.health} · score ${this.game.score}`, 8, this.height - 20, false, '#9ad0ff');
   }
 
@@ -463,4 +473,18 @@ function makeKeyboardControls(): DisposableControls {
       window.removeEventListener('keyup', onUp);
     },
   };
+}
+
+/** A representative sprite for a weapon, or null if not applicable. */
+function weaponSprite(w: unknown): string | null {
+  if (w instanceof Barrel) return w.sprite();
+  if (w instanceof Stick || w instanceof Chain) return w.spriteName;
+  return null;
+}
+
+/** A representative sprite for a powerup. */
+function powerupSprite(p: unknown): string | null {
+  if (p instanceof ExtraLifePowerup) return p.sprite();
+  if (p instanceof HealthPowerup) return p.spriteName;
+  return null;
 }

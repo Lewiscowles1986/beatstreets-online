@@ -6,6 +6,8 @@ import { Player } from './player';
 import { Enemy } from './enemy';
 import { EnemyVax, EnemyHoodie, EnemyScooterboy, EnemyBoss, EnemyPortal } from './enemies';
 import { CheatState } from './cheat';
+import { Barrel, Stick, Chain, Weapon } from './weapons';
+import { HealthPowerup, ExtraLifePowerup, Powerup } from './powerups';
 import { ControllerInput } from '../core/controller';
 import { Vec2, clamp } from '../core/math';
 
@@ -38,7 +40,7 @@ export class Game implements GameContext {
   player: Player;
   enemies: Fighter[] = [];
   weapons: WeaponLike[] = [];
-  powerups: { vpos: Vec2; collected: boolean; collect(c: { health: number; startHealth: number; gainExtraLife(): void }): void }[] = [];
+  powerups: Powerup[] = [];
   stageIndex = -1;
   timer = 0;
   score = 0;
@@ -137,13 +139,49 @@ export class Game implements GameContext {
     }
     this.enemies = enemies;
     for (const enemy of this.enemies) enemy.spawned();
-    // Weapons/powerups are represented minimally for now (see buildWorld).
+    // Reset weapons/powerups to this stage's spawns.
+    this.weapons = [];
+    this.powerups = [];
     this.addStageWorldObjects(stage);
   }
 
   private addStageWorldObjects(stage: Stage): void {
-    // Placeholder hook: full weapon/powerup physics come in a later increment.
-    void stage;
+    for (const w of stage.weapons) {
+      const weapon = this.buildWeapon(w);
+      if (weapon) this.weapons.push(weapon);
+    }
+    for (const p of stage.powerups) {
+      const powerup = this.buildPowerup(p);
+      if (powerup) this.powerups.push(powerup);
+    }
+  }
+
+  /** Build a weapon from a stage entity (Barrel / Stick / Chain). */
+  private buildWeapon(e: SpawnEntry): WeaponLike | null {
+    const pos = new Vec2(Number(e.pos[0]), e.pos[1] === 'MIN_WALK_Y' ? this.config.MIN_WALK_Y : Number(e.pos[1]));
+    switch (e.type) {
+      case 'Barrel':
+        return new Barrel(this, pos);
+      case 'Stick':
+        return new Stick(this, pos);
+      case 'Chain':
+        return new Chain(this, pos);
+      default:
+        return null;
+    }
+  }
+
+  /** Build a powerup from a stage entity (Health / ExtraLife). */
+  private buildPowerup(e: SpawnEntry): Powerup | null {
+    const pos = new Vec2(Number(e.pos[0]), e.pos[1] === 'MIN_WALK_Y' ? this.config.MIN_WALK_Y : Number(e.pos[1]));
+    switch (e.type) {
+      case 'HealthPowerup':
+        return new HealthPowerup(this, pos);
+      case 'ExtraLifePowerup':
+        return new ExtraLifePowerup(this, pos);
+      default:
+        return null;
+    }
   }
 
   /** Build an enemy from a stage entity, resolving MIN_WALK_Y positions. */
@@ -207,6 +245,11 @@ export class Game implements GameContext {
     // Update all objects.
     this.player.update();
     for (const e of this.enemies) e.update();
+    for (const w of this.weapons) if (w instanceof Weapon) w.update();
+    for (const p of this.powerups) p.update();
+
+    // Player collects powerups within reach.
+    this.collectPowerups();
 
     this.updateScrolling();
 
@@ -216,9 +259,22 @@ export class Game implements GameContext {
     }
     this.enemies = this.enemies.filter((e) => e.lives > 0);
 
+    // Remove broken weapons and ones off the left of the screen.
+    this.weapons = this.weapons.filter((w) => !w.is_broken() && w.vpos.x > -200);
+    // Remove collected powerups and ones off the left of the screen.
+    this.powerups = this.powerups.filter((p) => !p.collected && p.vpos.x > -200);
+
     // Advance to next stage when empty and fully scrolled.
     if (this.enemies.length === 0 && this.scrollOffset.x === this.maxScrollOffsetX) {
       this.nextStage();
+    }
+  }
+
+  private collectPowerups(): void {
+    for (const p of this.powerups) {
+      if (!p.collected && p.vpos.sub(this.player.vpos).length() < 30) {
+        p.collect(this.player);
+      }
     }
   }
 

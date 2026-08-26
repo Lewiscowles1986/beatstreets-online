@@ -29,3 +29,5 @@ export * from './engine/enemy';
 export * from './engine/enemies';
 export * from './engine/game';
 export * from './engine/cheat';
+export * from './engine/weapons';
+export * from './engine/powerups';
