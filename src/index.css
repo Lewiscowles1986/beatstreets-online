@@ -60,3 +60,19 @@ body {
 .links a:hover {
   text-decoration: underline;
 }
+
+.play {
+  margin-top: 1.5rem;
+  padding: 0.75rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #121212;
+  background: #ffd24d;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.play:hover {
+  background: #ffc72e;
+}

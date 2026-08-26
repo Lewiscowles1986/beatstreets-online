@@ -38,6 +38,16 @@ The pure logic lives in `@beatstreets/engine` (framework-agnostic: no React, no 
 Vite). The app consumes it via the npm workspace. Build/test it separately:
 `npm run build:engine` and `npm run test:engine`.
 
+## Code splitting / lazy loading
+The entry shell is kept small. The heavy game host (`GameCanvas` — engine + WebGL/Canvas
+renderers + the 1368-sprite manifest) is `React.lazy`-loaded behind a "Play" action, and
+the build splits chunks via `rollupOptions.output.manualChunks`:
+- `vendor-react` (react / react-dom / react-compiler-runtime / scheduler)
+- `vendor-zod`
+- `engine` (@beatstreets/engine)
+- `webgl-render`
+The entry stays ~20 kB; the game chunks load only when the user actually plays.
+
 ## Scripts
 - `npm run dev` — Vite dev server
 - `npm run build` — typecheck + production build → `dist/`

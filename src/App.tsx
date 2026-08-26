@@ -1,7 +1,13 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { loadGameSpec, loadResolvedStages } from './game/data';
 import { spriteCount } from './game/assets';
 import './index.css';
+
+// The heavy game host (engine + WebGL/Canvas renderers) is loaded lazily so the entry
+// shell stays small; it's only fetched when the user actually starts playing.
+const GameCanvas = lazy(() =>
+  import('./components/GameCanvas').then((m) => ({ default: m.GameCanvas })),
+);
 
 type AppInfo = {
   title: string;
@@ -15,10 +21,7 @@ type AppInfo = {
 
 type Loaded = { info: AppInfo | null; error: string | null };
 
-/**
- * Load the game-spec overview eagerly. All of the data is available synchronously,
- * so this is derived once during the initial render rather than fetched in an effect.
- */
+/** Load the game-spec overview eagerly (data is synchronous, no network fetch). */
 function loadInfo(): Loaded {
   try {
     const spec = loadGameSpec();
@@ -40,15 +43,9 @@ function loadInfo(): Loaded {
   }
 }
 
-/**
- * Minimal app shell for the Beat Streets web port.
- *
- * This is intentionally a thin host: the real surface area is the component library
- * (Storybook) and the game engine. It renders an overview of the loaded game spec so
- * you can see the data-driven DSL working, and links to the Storybook build.
- */
 export default function App() {
   const [{ info, error }] = useState<Loaded>(loadInfo);
+  const [playing, setPlaying] = useState(false);
 
   return (
     <div className="shell">
@@ -60,23 +57,34 @@ export default function App() {
 
       {error && <p className="error">Failed to load game spec: {error}</p>}
 
-      {info && (
-        <dl className="spec">
-          <dt>Title</dt>
-          <dd>{info.title}</dd>
-          <dt>Canvas</dt>
-          <dd>
-            {info.width} × {info.height}
-          </dd>
-          <dt>Stages</dt>
-          <dd>{info.stages}</dd>
-          <dt>Characters</dt>
-          <dd>{info.characters}</dd>
-          <dt>Attacks</dt>
-          <dd>{info.attacks}</dd>
-          <dt>Sprites</dt>
-          <dd>{info.sprites}</dd>
-        </dl>
+      {info && !playing && (
+        <>
+          <dl className="spec">
+            <dt>Title</dt>
+            <dd>{info.title}</dd>
+            <dt>Canvas</dt>
+            <dd>
+              {info.width} × {info.height}
+            </dd>
+            <dt>Stages</dt>
+            <dd>{info.stages}</dd>
+            <dt>Characters</dt>
+            <dd>{info.characters}</dd>
+            <dt>Attacks</dt>
+            <dd>{info.attacks}</dd>
+            <dt>Sprites</dt>
+            <dd>{info.sprites}</dd>
+          </dl>
+          <button type="button" className="play" onClick={() => setPlaying(true)}>
+            Play
+          </button>
+        </>
+      )}
+
+      {playing && (
+        <Suspense fallback={<div aria-busy="true" role="status">loading game…</div>}>
+          <GameCanvas stage={1} width={800} height={480} debug />
+        </Suspense>
       )}
 
       <nav className="links">

@@ -20,6 +20,27 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        // Split the heavy, rarely-changing dependencies into their own chunks so the
+        // entry shell stays small and vendor code can be cached separately.
+        manualChunks(id) {
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-compiler-runtime/') || id.includes('node_modules/scheduler/')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/zod/')) {
+            return 'vendor-zod';
+          }
+          if (id.includes('@beatstreets/engine') || id.includes('/packages/engine/')) {
+            return 'engine';
+          }
+          if (id.includes('/render/webgl-render')) {
+            return 'webgl-render';
+          }
+          return undefined;
+        },
+      },
+    },
   },
   test: {
     // Vitest config (inline) — jsdom for component/DOM tests.
