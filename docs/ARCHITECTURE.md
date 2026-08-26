@@ -23,7 +23,9 @@ src/game/dsl/        Zod schemas + normalisers per data file (config, characters
 src/game/data.ts     Loads + validates all JSON into a GameSpec; resolves stages.
 src/game/assets.ts   Sprite + music asset loader (Vite glob import).
 src/game/core/       Pure logic ports: math (Vec2/clamp/remap/8-way angles), input
-                     (rising-edge), scene (SceneManager).
+                     (rising-edge), scene (SceneManager), controller (keyboard +
+                     gamepad + WebSocket adapters, hot-pluggable registry), konami
+                     (cheat-sequence detection on any input).
 src/game/render/     Render abstraction + CanvasRender implementation.
 src/components/      React components: SpecOverview, StageView, StageList, Hud, hook.
 e2e/                 Playwright specs (app smoke + Storybook screenshots).

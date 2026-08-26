@@ -16,6 +16,7 @@ const STORIES: Array<{ id: string; file: string }> = [
   { id: 'game-hud--low-health', file: 'hud-low-health.png' },
   { id: 'game-stagelist--first-five-stages', file: 'stagelist-first-five.png' },
   { id: 'game-stagelist--late-game-stages', file: 'stagelist-late-game.png' },
+  { id: 'game-konamipanel--default-keyboard', file: 'konami-panel.png' },
 ];
 
 for (const story of STORIES) {

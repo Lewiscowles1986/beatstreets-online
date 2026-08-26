@@ -29,6 +29,10 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.flat['recommended-latest'].rules,
       ...reactCompiler.configs.recommended.rules,
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
     languageOptions: {
       globals: {
