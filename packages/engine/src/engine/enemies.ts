@@ -105,6 +105,35 @@ export class EnemyScooterboy extends Enemy {
   }
 }
 
+/** A lone scooter after its rider has been knocked off — slides away and slows down. */
+export class Scooter {
+  vpos: Vec2;
+  facingX: number;
+  colourVariant: number;
+  velX: number;
+  frame = 0;
+
+  constructor(game: GameContext, pos: Vec2, facingX: number, colourVariant: number) {
+    this.vpos = pos;
+    this.facingX = facingX;
+    this.colourVariant = colourVariant;
+    this.velX = -facingX * 8;
+    game.playSound('scooter_fall');
+  }
+
+  update(): void {
+    this.frame += 1;
+    this.vpos.x += this.velX;
+    this.velX *= 0.94;
+  }
+
+  /** The bike sprite for the current animation frame. */
+  sprite(): string {
+    const facingId = this.facingX > 0 ? 1 : 0;
+    return `scooterboy_bike_${facingId}_${Math.min(Math.floor(this.frame / 30), 2)}_${this.colourVariant}`;
+  }
+}
+
 function moveToward(n: number, target: number, speed: number): number {
   if (n < target) return Math.min(n + speed, target);
   if (n > target) return Math.max(n - speed, target);

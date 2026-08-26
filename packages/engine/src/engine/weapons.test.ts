@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Barrel, Stick, Chain } from './weapons';
+import { Scooter } from './enemies';
 import { HealthPowerup, ExtraLifePowerup } from './powerups';
 import { Game } from './game';
 import { Vec2 } from '../core/math';
@@ -186,5 +187,26 @@ describe('Game stage world', () => {
     // Player health is full (30), so health pickup caps at max -> unchanged; but powerup is collected.
     expect(powerup.collected).toBe(true);
     expect(g.player.health).toBe(healthBefore);
+  });
+});
+
+describe('Scooter (knock-off)', () => {
+  it('slides away and slows down over time', () => {
+    const g = makeGame();
+    const scooter = new Scooter(g, new Vec2(500, 400), 1, 2);
+    const startX = scooter.vpos.x;
+    // Slides left (-facingX * 8 initial velocity), then decays.
+    for (let i = 0; i < 60; i++) scooter.update();
+    expect(scooter.vpos.x).toBeLessThan(startX);
+    expect(Math.abs(scooter.velX)).toBeLessThan(8);
+  });
+
+  it('uses the bike sprite with facing + animation frame', () => {
+    const g = makeGame();
+    const scooter = new Scooter(g, new Vec2(500, 400), 1, 2);
+    expect(scooter.sprite()).toMatch(/^scooterboy_bike_1_\d_2$/);
+    // Flip facing -> sprite id 0.
+    const left = new Scooter(g, new Vec2(500, 400), -1, 1);
+    expect(left.sprite()).toMatch(/^scooterboy_bike_0_\d_1$/);
   });
 });

@@ -4,7 +4,7 @@ import { GameSpec } from '../dsl/game-spec';
 import { Fighter, GameContext, FallingState, WeaponLike } from './fighter';
 import { Player } from './player';
 import { Enemy } from './enemy';
-import { EnemyVax, EnemyHoodie, EnemyScooterboy, EnemyBoss, EnemyPortal } from './enemies';
+import { EnemyVax, EnemyHoodie, EnemyScooterboy, EnemyBoss, EnemyPortal, Scooter } from './enemies';
 import { CheatState } from './cheat';
 import { Barrel, Stick, Chain, Weapon } from './weapons';
 import { HealthPowerup, ExtraLifePowerup, Powerup } from './powerups';
@@ -41,6 +41,7 @@ export class Game implements GameContext {
   enemies: Fighter[] = [];
   weapons: WeaponLike[] = [];
   powerups: Powerup[] = [];
+  scooters: Scooter[] = [];
   stageIndex = -1;
   timer = 0;
   score = 0;
@@ -261,6 +262,15 @@ export class Game implements GameContext {
     for (const e of this.enemies) e.update();
     for (const w of this.weapons) if (w instanceof Weapon) w.update();
     for (const p of this.powerups) p.update();
+    for (const s of this.scooters) s.update();
+
+    // Spawn a lone scooter when a knocked-off scooterboy finishes the knock-off frame.
+    for (const e of this.enemies) {
+      if (e instanceof EnemyScooterboy && e.justKnockedOffScooter && e.frame > 10) {
+        e.justKnockedOffScooter = false;
+        this.scooters.push(new Scooter(this, e.vpos.clone(), e.facingX, e.colourVariant ?? 0));
+      }
+    }
 
     // Player collects powerups within reach.
     this.collectPowerups();

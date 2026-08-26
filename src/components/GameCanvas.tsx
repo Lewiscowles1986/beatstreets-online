@@ -417,6 +417,10 @@ class Host {
       const sprite = powerupSprite(p);
       if (sprite) render.blitSprite(sprite, p.vpos.x - this.game.scrollOffset.x, p.vpos.y);
     }
+    // Lone scooters (riders knocked off).
+    for (const s of this.game.scooters) {
+      render.blitSprite(s.sprite(), s.vpos.x - this.game.scrollOffset.x, s.vpos.y);
+    }
     // Scrolling arrow: shows when the stage can still scroll forward.
     if (this.game.scrollOffset.x < this.game.maxScrollOffsetX && (this.game.timer / 30 | 0) % 2 === 0) {
       render.blitSprite('arrow', this.width - 450, 120, ['left', 'top']);
