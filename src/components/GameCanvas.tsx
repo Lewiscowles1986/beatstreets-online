@@ -374,10 +374,15 @@ class Host {
     const render = this.render;
     if (!render) return;
     this.drawWorld(render);
-    // Intro/outro story text overlay (typewriter).
-    if (this.game.textActive) {
-      render.fillRect(0, 0, this.width, this.height, 'rgba(0,0,0,0.85)');
-      render.drawText(this.game.displayedText, 50, 50, false, '#fff');
+    // Intro/outro story text overlay (typewriter), then fade it away.
+    // Matches the Python game: a black overlay is opaque during the text and fades
+    // out over ~255 frames after the text is dismissed (timer resets to 0 on skip).
+    if (this.game.textActive || this.game.timer < 255) {
+      const alpha = this.game.textActive ? 255 : Math.max(0, 255 - this.game.timer);
+      render.fillRect(0, 0, this.width, this.height, `rgba(0,0,0,${alpha / 255})`);
+      if (this.game.textActive) {
+        render.drawText(this.game.displayedText, 50, 50, false, '#fff');
+      }
     }
   }
 
@@ -466,11 +471,20 @@ interface DisposableControls {
 function makeKeyboardControls(): DisposableControls {
   const down = new Set<string>();
   const prev = new Set<string>();
+  const justPressed = new Set<number>();
   const map: Record<number, string[]> = { 0: [' '], 1: ['x'], 2: ['c'], 3: ['a'] };
   const keyFor = (b: number) => [...down].some((k) => map[b]?.includes(k));
+  const buttonFor = (k: string): number | null => {
+    for (const [b, keys] of Object.entries(map)) {
+      if (keys.includes(k)) return Number(b);
+    }
+    return null;
+  };
   const onDown = (e: KeyboardEvent) => {
     down.add(e.code);
     down.add(e.key);
+    const b = buttonFor(e.key);
+    if (b !== null) justPressed.add(b);
   };
   const onUp = (e: KeyboardEvent) => {
     down.delete(e.code);
@@ -484,7 +498,14 @@ function makeKeyboardControls(): DisposableControls {
     getX: () => (down.has('ArrowRight') || down.has('d') ? 1 : down.has('ArrowLeft') || down.has('a') ? -1 : 0),
     getY: () => (down.has('ArrowDown') || down.has('s') ? 1 : down.has('ArrowUp') || down.has('w') ? -1 : 0),
     held: keyFor,
-    pressed: keyFor,
+    // Rising-edge captured at keydown time so a quick tap between frames is never lost.
+    pressed: (b: number) => {
+      if (justPressed.has(b)) {
+        justPressed.delete(b);
+        return true;
+      }
+      return false;
+    },
     rawPressed: (key: string) => {
       const was = prev.has(key);
       const is = down.has(key);
