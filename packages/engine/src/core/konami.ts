@@ -1,23 +1,21 @@
 /**
- * Konami code detection — the classic cheat sequence that unlocks the cheat menu.
- * Works across any controller: directions (0..7 8-way angles) and the A (button 0) /
- * B (button 1) actions, regardless of whether they came from a keyboard, gamepad or
- * WebSocket.
+ * Konami code detection — the cheat sequence that unlocks the cheat menu.
+ * Works across any controller: directions and the A (button 0 / punch) /
+ * B (button 1 / kick) actions, regardless of whether they came from a keyboard,
+ * gamepad or WebSocket.
  *
- * Sequence (up, up, down, down, left, right, left, right, B, A):
- *   0 up, 1 up, 2 down, 3 down, 4 left, 5 right, 6 left, 7 right, 8 B, 9 A
+ * The Beat Streets sequence is (UP, DOWN, LEFT, RIGHT, LEFT, RIGHT, A, B):
+ *   0 up, 1 down, 2 left, 3 right, 4 left, 5 right, 6 A, 7 B
  */
 export const KONAMI = [
   'up',
-  'up',
-  'down',
   'down',
   'left',
   'right',
   'left',
   'right',
-  'b',
   'a',
+  'b',
 ];
 
 /** The 8-way angle tokens that map onto the Konami directions. */

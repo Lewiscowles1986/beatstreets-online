@@ -127,9 +127,9 @@ describe('KonamiDetector', () => {
   it('resets on a wrong input', () => {
     const d = new KonamiDetector();
     d.feed('up');
-    d.feed('up');
-    d.feed('down'); // wrong (expected down, ok), then break
-    d.feed('right'); // wrong at this position
+    d.feed('down');
+    d.feed('left'); // matches, but then break the sequence
+    d.feed('down'); // wrong at this position
     expect(d.progress).toBe(0);
   });
 
@@ -138,5 +138,42 @@ describe('KonamiDetector', () => {
     expect(DIR_TO_ANGLE['down']).toBe(4);
     expect(DIR_TO_ANGLE['left']).toBe(6);
     expect(DIR_TO_ANGLE['right']).toBe(2);
+  });
+});
+
+describe('Konami via keyboard events (panel flow)', () => {
+  // Mirrors how KonamiPanel feeds the detector: keydown adds BOTH e.code and e.key,
+  // arrows map to direction tokens, and button presses map 0->a / 1->b.
+  it('unlocks when the code is typed through key events', () => {
+    const detector = new KonamiDetector();
+    const feedKey = (key: string) => {
+      // direction keys -> token
+      const dirMap: Record<string, string> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+      const dir = dirMap[key];
+      if (dir) {
+        if (detector.feed(dir)) return true;
+      }
+      // buttons (key value) -> a/b
+      if (key === 'x') return detector.feed('b');
+      if (key === ' ') return detector.feed('a');
+      return false;
+    };
+
+    let unlocked = false;
+    // Beat Streets Konami: up, down, left, right, left, right, A(space), B(KeyX/x)
+    const sequence: string[] = [
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+      'ArrowLeft',
+      'ArrowRight',
+      ' ',
+      'x',
+    ];
+    for (const key of sequence) {
+      if (feedKey(key)) unlocked = true;
+    }
+    expect(unlocked).toBe(true);
   });
 });

@@ -89,11 +89,18 @@ export function KonamiPanel({ buttonKeys = DEFAULT_BUTTONS }: KonamiPanelProps) 
     }
 
     const onDown = (e: KeyboardEvent) => {
+      // Track both the physical code (e.g. "KeyX") and the logical key (e.g. "x") so
+      // lookups by either convention work. Arrows are matched by code; the game
+      // buttons are matched by their key value (" ", "x", "c", "a").
       keysDown.add(e.code);
+      keysDown.add(e.key);
       const dir = dirMap[e.key];
       if (dir) feedDirection(dir);
     };
-    const onUp = (e: KeyboardEvent) => keysDown.delete(e.code);
+    const onUp = (e: KeyboardEvent) => {
+      keysDown.delete(e.code);
+      keysDown.delete(e.key);
+    };
 
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
