@@ -178,7 +178,7 @@ class Host {
     this.stage = stage;
     this.debug = debug;
     this.isWebGL = !forceCanvas2D;
-    this.controls = makeKeyboardControls();
+    this.controls = makeControls();
     this.game = new Game(loadGameSpec(), this.controls);
 
     const title = new (class extends Scene {
@@ -503,6 +503,76 @@ interface DisposableControls {
   escPressed(): boolean;
   dispose(): void;
 }
+
+function makeControls(): DisposableControls {
+  const kb = makeKeyboardControls();
+  const pad = makeGamepadControls();
+  // Merge: keyboard and gamepad both feed held/pressed/axis; edge state is the OR.
+  return {
+    getX: () => clampUnit(kb.getX() + pad.getX()),
+    getY: () => clampUnit(kb.getY() + pad.getY()),
+    held: (b: number) => kb.held(b) || pad.held(b),
+    pressed: (b: number) => kb.pressed(b) || pad.pressed(b),
+    rawPressed: (k: string) => kb.rawPressed(k),
+    directions: () => kb.directions(),
+    escPressed: () => kb.escPressed(),
+    dispose: () => {
+      kb.dispose();
+      pad.dispose();
+    },
+  };
+}
+
+function clampUnit(v: number): number {
+  return Math.max(-1, Math.min(1, v));
+}
+
+/** Gamepad adapter: polls navigator.getGamepads() and maps to held/pressed/axis. */
+function makeGamepadControls(): {
+  getX(): number;
+  getY(): number;
+  held(b: number): boolean;
+  pressed(b: number): boolean;
+  dispose(): void;
+} {
+  const previous = [false, false, false, false];
+  let current = { x: 0, y: 0, buttons: [false, false, false, false], pressed: [false, false, false, false] };
+  let raf = 0;
+
+  const poll = () => {
+    let pad: RawGamepadLike | null = null;
+    if (typeof navigator !== 'undefined' && navigator.getGamepads) {
+      const list = navigator.getGamepads() as (RawGamepadLike | null)[];
+      pad = list[0] ?? null;
+    }
+    const buttons = [0, 1, 2, 3].map((i) => pad?.buttons[i]?.pressed ?? false);
+    current = {
+      x: pad ? axisVal(pad.axes[0]) : 0,
+      y: pad ? axisVal(pad.axes[1]) : 0,
+      buttons,
+      pressed: buttons.map((b, i) => b && !previous[i]),
+    };
+    previous.splice(0, 4, ...buttons);
+    raf = requestAnimationFrame(poll);
+  };
+  raf = requestAnimationFrame(poll);
+
+  return {
+    getX: () => current.x,
+    getY: () => current.y,
+    held: (b: number) => current.buttons[b] ?? false,
+    pressed: (b: number) => current.pressed[b] ?? false,
+    dispose: () => cancelAnimationFrame(raf),
+  };
+}
+
+function axisVal(v: number | undefined): number {
+  if (v === undefined) return 0;
+  if (Math.abs(v) < 0.6) return 0;
+  return v > 0 ? 1 : -1;
+}
+
+type RawGamepadLike = { id: string; buttons: Array<{ pressed: boolean }>; axes: number[] };
 
 function makeKeyboardControls(): DisposableControls {
   const down = new Set<string>();
