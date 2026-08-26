@@ -30,6 +30,10 @@ export class Player extends Fighter {
     return 1;
   }
 
+  override isPlayer(): boolean {
+    return true;
+  }
+
   protected override determineAttack(): Attack | null {
     if (this.weapon) {
       if (this.pickupAnimation === null && this.controls.pressed(0)) {

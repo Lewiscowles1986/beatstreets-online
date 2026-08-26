@@ -5,6 +5,7 @@ import { Fighter, GameContext, FallingState, WeaponLike } from './fighter';
 import { Player } from './player';
 import { Enemy } from './enemy';
 import { EnemyVax, EnemyHoodie, EnemyScooterboy, EnemyBoss, EnemyPortal } from './enemies';
+import { CheatState } from './cheat';
 import { ControllerInput } from '../core/controller';
 import { Vec2, clamp } from '../core/math';
 
@@ -50,6 +51,7 @@ export class Game implements GameContext {
   displayedText = '';
   outroActive = false;
   won = false;
+  cheatState = new CheatState(0);
 
   private stages: Stage[];
   private attacks: GameSpec['attacks'];
@@ -64,6 +66,7 @@ export class Game implements GameContext {
     this.attacks = spec.attacks;
     this.characters = spec.characters;
     this.stages = spec.stages.stages;
+    this.cheatState = new CheatState(this.stages.length);
     this.player = new Player(this, controls);
     this.boundary = { left: 0, top: this.config.MIN_WALK_Y, right: this.config.WIDTH - 1, bottom: this.config.HEIGHT - 1 };
     this.textActive = spec.config.INTRO_ENABLED;
@@ -90,6 +93,10 @@ export class Game implements GameContext {
 
   scrollX(): number {
     return this.scrollOffset.x;
+  }
+
+  cheat(): { godMode: boolean; onePunch: boolean } {
+    return this.cheatState.settings;
   }
 
   /** Spawn a named enemy (used by portals). */

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Game, Scene, SceneManager } from '@beatstreets/engine';
+import { Game, Scene, SceneManager, KonamiDetector } from '@beatstreets/engine';
 import { loadGameSpec } from '../game/data';
 import { CanvasRender } from '../game/render/canvas-render';
 import { WebGLRender } from '../game/render/webgl-render';
@@ -33,6 +33,7 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    // Attach (and size) the canvas once sprites are ready and it is mounted.
     host.attach(canvasRef.current);
     let raf = 0;
     const step = () => {
@@ -44,7 +45,7 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
       cancelAnimationFrame(raf);
       host.detach();
     };
-  }, [width, height]);
+  }, [width, height, ready]);
 
   if (!ready) {
     return (
@@ -80,6 +81,13 @@ class Host {
   private render: Renderer | null = null;
   private titleFrame = 0;
   private isWebGL = false;
+  private konami = new KonamiDetector();
+  private controls: DisposableControls;
+  private lastDirections: [boolean, boolean, boolean, boolean] = [false, false, false, false];
+  // Pause / cheat menu cursor state.
+  private pauseCursor = 0;
+  private cheatJustOpened = false;
+  private pauseJustOpened = false;
 
   constructor(width: number, height: number, stage: number, debug: boolean, forceCanvas2D: boolean) {
     this.width = width;
@@ -87,7 +95,8 @@ class Host {
     this.stage = stage;
     this.debug = debug;
     this.isWebGL = !forceCanvas2D;
-    this.game = new Game(loadGameSpec(), makeKeyboardControls());
+    this.controls = makeKeyboardControls();
+    this.game = new Game(loadGameSpec(), this.controls);
 
     const title = new (class extends Scene {
       constructor(private h: Host) {
@@ -95,10 +104,21 @@ class Host {
       }
       update() {
         this.h.titleFrame += 1;
-        if (this.h.anyButtonPressed()) this.h.startPlay();
+        if (this.h.anyButtonPressed()) this.h.toControls();
       }
       draw() {
         this.h.drawTitle();
+      }
+    })(this);
+    const controlsScene = new (class extends Scene {
+      constructor(private h: Host) {
+        super();
+      }
+      update() {
+        if (this.h.anyButtonPressed()) this.h.startPlay();
+      }
+      draw() {
+        this.h.drawControls();
       }
     })(this);
     const play = new (class extends Scene {
@@ -107,10 +127,38 @@ class Host {
       }
       update() {
         this.h.game.update();
-        if (this.h.game.checkWon() || this.h.game.player.lives <= 0) this.h.endGame();
+        // Gather fresh inputs for the Konami detector + pause.
+        const tokens = this.h.collectCheatTokens();
+        if (this.h.game.checkWon() || this.h.game.player.lives <= 0) {
+          this.h.endGame();
+          return;
+        }
+        this.h.handlePlayTokens(tokens);
       }
       draw() {
         this.h.drawGame();
+      }
+    })(this);
+    const pause = new (class extends Scene {
+      constructor(private h: Host) {
+        super();
+      }
+      update() {
+        this.h.updatePause();
+      }
+      draw() {
+        this.h.drawPause();
+      }
+    })(this);
+    const cheat = new (class extends Scene {
+      constructor(private h: Host) {
+        super();
+      }
+      update() {
+        this.h.updateCheat();
+      }
+      draw() {
+        this.h.drawCheat();
       }
     })(this);
     const over = new (class extends Scene {
@@ -126,7 +174,10 @@ class Host {
     })(this);
 
     this.sceneManager.add('title', title);
+    this.sceneManager.add('controls', controlsScene);
     this.sceneManager.add('play', play);
+    this.sceneManager.add('pause', pause);
+    this.sceneManager.add('cheat', cheat);
     this.sceneManager.add('game-over', over);
     this.sceneManager.switch('title');
   }
@@ -134,6 +185,12 @@ class Host {
   attach(canvas: HTMLCanvasElement | null): void {
     this.render = null; // rebuild bound to the real canvas
     if (!canvas) return;
+    // Size the canvas backing store (and CSS size) so it isn't the 300x150 default.
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = this.width * dpr;
+    canvas.height = this.height * dpr;
+    canvas.style.width = `${this.width}px`;
+    canvas.style.height = `${this.height}px`;
     if (this.isWebGL) {
       try {
         this.render = new WebGLRender(canvas, this.width, this.height);
@@ -144,6 +201,7 @@ class Host {
     }
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('no 2d context');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.render = new CanvasRender(ctx, this.width, this.height);
   }
 
@@ -155,10 +213,18 @@ class Host {
     return this.game.player.controls.pressed(0) || this.game.player.controls.pressed(1);
   }
 
+  toControls(): void {
+    this.sceneManager.switch('controls');
+  }
+
   startPlay(): void {
     this.sceneManager.switch('play');
-    this.game = new Game(loadGameSpec(), makeKeyboardControls());
+    this.game = new Game(loadGameSpec(), this.controls);
     this.game.jumpToStage(this.stage);
+    this.konami.reset();
+    this.pauseCursor = 0;
+    this.cheatJustOpened = false;
+    this.pauseJustOpened = false;
   }
 
   endGame(): void {
@@ -167,7 +233,75 @@ class Host {
 
   toTitle(): void {
     this.sceneManager.switch('title');
-    this.game = new Game(loadGameSpec(), makeKeyboardControls());
+    this.game = new Game(loadGameSpec(), this.controls);
+    this.konami.reset();
+  }
+
+  /** Edge-detect the four directions and map them to Konami tokens for this frame. */
+  collectCheatTokens(): string[] {
+    const dirs = this.controls.directions();
+    const tokens: string[] = [];
+    const names = ['up', 'down', 'left', 'right'];
+    for (let i = 0; i < 4; i++) {
+      if (dirs[i] && !this.lastDirections[i]) tokens.push(names[i]);
+    }
+    this.lastDirections = dirs;
+    return tokens;
+  }
+
+  /** Feed cheat tokens + A/B into the Konami detector; ESC opens pause. */
+  handlePlayTokens(tokens: string[]): void {
+    // A (button 0) / B (button 1) also feed the code.
+    if (this.controls.pressed(0)) tokens.push('a');
+    if (this.controls.pressed(1)) tokens.push('b');
+    if (this.controls.escPressed()) tokens.push('escape');
+
+    if (this.konami.feedMany(tokens)) {
+      this.sceneManager.switch('cheat');
+      this.cheatJustOpened = true;
+      this.game.cheatState.reset();
+      return;
+    }
+    if (tokens.includes('escape')) {
+      this.sceneManager.switch('pause');
+      this.pauseCursor = 0;
+      this.pauseJustOpened = true;
+    }
+  }
+
+  updatePause(): void {
+    if (this.pauseJustOpened) {
+      this.pauseJustOpened = false;
+      return;
+    }
+    const up = this.controls.rawPressed('ArrowUp');
+    const down = this.controls.rawPressed('ArrowDown');
+    if (up) this.pauseCursor = (this.pauseCursor - 1 + 2) % 2;
+    if (down) this.pauseCursor = (this.pauseCursor + 1) % 2;
+    if (this.controls.pressed(0)) {
+      if (this.pauseCursor === 0) this.sceneManager.switch('play'); // RESUME
+      else this.toTitle(); // QUIT
+    }
+    if (this.controls.escPressed()) this.sceneManager.switch('play');
+  }
+
+  updateCheat(): void {
+    if (this.cheatJustOpened) {
+      this.cheatJustOpened = false;
+      return;
+    }
+    const action = this.game.cheatState.update({
+      up: this.controls.rawPressed('ArrowUp'),
+      down: this.controls.rawPressed('ArrowDown'),
+      a: this.controls.pressed(0),
+      b: this.controls.pressed(1),
+    });
+    if (action === 'close') {
+      this.sceneManager.switch('play');
+    } else if (action === 'select' && this.game.cheatState.selectedItem === null) {
+      // Stage select chosen a stage.
+      this.game.jumpToStage(this.game.cheatState.stage);
+    }
   }
 
   tick(): void {
@@ -206,6 +340,19 @@ class Host {
     if (render) this.drawWorld(render);
   }
 
+  drawControls(): void {
+    const render = this.render;
+    if (!render) return;
+    render.clear('#000');
+    render.drawText('CONTROLS', this.width / 2, 100, true, '#fff');
+    render.drawText('MOVE  ARROWS / WASD', this.width / 2, 170, true, '#9ad0ff');
+    render.drawText('PUNCH  SPACE / Z', this.width / 2, 200, true, '#9ad0ff');
+    render.drawText('KICK  X', this.width / 2, 230, true, '#9ad0ff');
+    render.drawText('ELBOW  C', this.width / 2, 260, true, '#9ad0ff');
+    render.drawText('FLYING KICK  A', this.width / 2, 290, true, '#9ad0ff');
+    render.drawText('PRESS SPACE TO START', this.width / 2, this.height - 60, true, '#fff');
+  }
+
   drawGameOver(): void {
     const render = this.render;
     if (!render) return;
@@ -215,6 +362,51 @@ class Host {
     render.drawText(`SCORE ${this.game.score}`, this.width / 2, this.height / 2 + 20, true, '#ffd24d');
     render.drawText('PRESS SPACE', this.width / 2, this.height - 60, true, '#fff');
   }
+
+  drawPause(): void {
+    const render = this.render;
+    if (!render) return;
+    this.drawWorld(render);
+    render.fillRect(0, 0, this.width, this.height, 'rgba(0,0,0,0.7)');
+    render.drawText('PAUSED', this.width / 2, 120, true, '#fff');
+    const lines = ['RESUME', 'QUIT'];
+    for (let i = 0; i < lines.length; i++) {
+      const y = 200 + i * 60;
+      if (i === this.pauseCursor) {
+        render.fillRect(this.width / 2 - 120, y - 5, 240, 60, '#aa1e1e');
+      }
+      render.drawText(lines[i], this.width / 2, y, true, '#fff');
+    }
+    render.drawText('UP/DOWN SELECT   SPACE CONFIRM   ESC RESUME', this.width / 2, this.height - 40, true, '#9ad0ff');
+  }
+
+  drawCheat(): void {
+    const render = this.render;
+    if (!render) return;
+    this.drawWorld(render);
+    render.fillRect(0, 0, this.width, this.height, 'rgba(0,0,0,0.7)');
+    const cs = this.game.cheatState;
+    if (cs.mode === 'stage-select') {
+      render.drawText('STAGE SELECT', this.width / 2, 120, true, '#fff');
+      render.drawText(`STAGE ${String(cs.stage).padStart(2, '0')}`, this.width / 2, 210, true, '#ffd24d');
+      render.drawText('UP/DOWN PICK   SPACE JUMP   X BACK', this.width / 2, 320, true, '#9ad0ff');
+      return;
+    }
+    render.drawText('CHEAT MENU', this.width / 2, 80, true, '#fff');
+    const lines = [
+      'STAGE SELECT',
+      `GOD MODE   - ${cs.settings.godMode ? 'ON' : 'OFF'}`,
+      `ONE PUNCH  - ${cs.settings.onePunch ? 'ON' : 'OFF'}`,
+    ];
+    for (let i = 0; i < lines.length; i++) {
+      const y = 170 + i * 60;
+      if (i === cs.cursor) {
+        render.fillRect(this.width / 2 - 150, y - 5, 300, 60, '#aa1e1e');
+      }
+      render.drawText(lines[i], this.width / 2, y, true, '#fff');
+    }
+    render.drawText('UP/DOWN SELECT   SPACE CONFIRM   X CLOSE', this.width / 2, this.height - 40, true, '#9ad0ff');
+  }
 }
 
 interface DisposableControls {
@@ -222,11 +414,17 @@ interface DisposableControls {
   getY(): number;
   held(b: number): boolean;
   pressed(b: number): boolean;
+  /** Fresh (edge) presses for a raw key name (e.g. 'ArrowUp', 'Escape'). */
+  rawPressed(key: string): boolean;
+  /** Current edge-detected [up, down, left, right] states. */
+  directions(): [boolean, boolean, boolean, boolean];
+  escPressed(): boolean;
   dispose(): void;
 }
 
 function makeKeyboardControls(): DisposableControls {
   const down = new Set<string>();
+  const prev = new Set<string>();
   const map: Record<number, string[]> = { 0: [' '], 1: ['x'], 2: ['c'], 3: ['a'] };
   const keyFor = (b: number) => [...down].some((k) => map[b]?.includes(k));
   const onDown = (e: KeyboardEvent) => {
@@ -236,6 +434,8 @@ function makeKeyboardControls(): DisposableControls {
   const onUp = (e: KeyboardEvent) => {
     down.delete(e.code);
     down.delete(e.key);
+    prev.delete(e.code);
+    prev.delete(e.key);
   };
   window.addEventListener('keydown', onDown);
   window.addEventListener('keyup', onUp);
@@ -244,6 +444,20 @@ function makeKeyboardControls(): DisposableControls {
     getY: () => (down.has('ArrowDown') || down.has('s') ? 1 : down.has('ArrowUp') || down.has('w') ? -1 : 0),
     held: keyFor,
     pressed: keyFor,
+    rawPressed: (key: string) => {
+      const was = prev.has(key);
+      const is = down.has(key);
+      prev.add(key);
+      return is && !was;
+    },
+    directions: () => {
+      const up = down.has('ArrowUp') || down.has('w');
+      const dn = down.has('ArrowDown') || down.has('s');
+      const lf = down.has('ArrowLeft') || down.has('a');
+      const rt = down.has('ArrowRight') || down.has('d');
+      return [up, dn, lf, rt];
+    },
+    escPressed: () => down.has('Escape'),
     dispose: () => {
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);

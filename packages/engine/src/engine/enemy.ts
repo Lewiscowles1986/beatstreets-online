@@ -53,6 +53,10 @@ export abstract class Enemy extends Fighter {
 
   override spawned(): void {}
 
+  override isEnemy(): boolean {
+    return true;
+  }
+
   override update(): void {
     const player = this.game.getEnemies()[0]; // not used here; placeholder for parity
     void player;

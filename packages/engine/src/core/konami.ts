@@ -50,6 +50,14 @@ export class KonamiDetector {
     return false;
   }
 
+  /** Feed many tokens (one frame); returns true if the code completes in order. */
+  feedMany(tokens: string[]): boolean {
+    for (const t of tokens) {
+      if (this.feed(t)) return true;
+    }
+    return false;
+  }
+
   reset(): void {
     this.position = 0;
   }

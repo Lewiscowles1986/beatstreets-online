@@ -67,7 +67,7 @@ export function Hud({
       render.drawText(`HP ${health}/${maxHealth}`, 48, 48, false, '#ff6b6b');
       render.drawText(`ST ${stamina}/${maxStamina}`, 517, 48, false, '#ffd24d');
     }
-  }, [health, maxHealth, stamina, maxStamina, lives, score, debug]);
+  }, [health, maxHealth, stamina, maxStamina, lives, score, debug, ready]);
 
   if (!ready) {
     return (

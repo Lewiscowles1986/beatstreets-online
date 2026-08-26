@@ -216,4 +216,46 @@ describe('Game engine', () => {
     expect(game.player.health).toBe(30);
     expect(game.player.lives).toBe(3);
   });
+
+  it('GOD MODE cheat: the player takes no damage', () => {
+    const game = new Game(testSpec(), new FakeControls());
+    game.jumpToStage(1);
+    const enemy = game.enemies[0];
+    // Place the enemy right in front of the player and set it attacking.
+    enemy.vpos = new Vec2(game.player.vpos.x + 40, game.player.vpos.y);
+    enemy.facingX = -1;
+    game.cheatState.settings.godMode = true;
+    const healthBefore = game.player.health;
+
+    // Let the enemy land an attack on the player.
+    let playerHit = false;
+    for (let i = 0; i < 60; i++) {
+      game.update();
+      if (game.player.health < healthBefore) {
+        playerHit = true;
+        break;
+      }
+    }
+    // With god mode, the player should be unharmed (and never report a hit).
+    expect(game.player.health).toBe(healthBefore);
+    expect(playerHit).toBe(false);
+  });
+
+  it('ONE PUNCH cheat: a player hit kills the enemy outright', () => {
+    const game = new Game(testSpec(), new FakeControls());
+    game.jumpToStage(1);
+    const enemy = game.enemies[0];
+    game.player.vpos = new Vec2(enemy.vpos.x - 60, enemy.vpos.y);
+    game.player.facingX = 1;
+    const controls = game.player.controls as FakeControls;
+    game.cheatState.settings.onePunch = true;
+    controls.press(0);
+
+    for (let i = 0; i < 30; i++) {
+      game.update();
+    }
+    // Enemy health should hit zero and it should be removed.
+    expect(enemy.health).toBe(0);
+    expect(game.enemies).not.toContain(enemy);
+  });
 });

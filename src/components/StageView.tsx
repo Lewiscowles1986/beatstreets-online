@@ -53,7 +53,7 @@ export function StageView({
     for (const p of stage.powerups) drawEntity(p.type, p.pos as [number, number], '#7dff7d');
 
     render.drawText(`Stage · scroll ${scrollOffsetX}`, 8, height - 14, false, '#9ad0ff');
-  }, [scrollOffsetX, debug]);
+  }, [scrollOffsetX, debug, ready]);
 
   if (!ready) {
     return (

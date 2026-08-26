@@ -61,7 +61,7 @@ export function StageList({
 
       render.drawText(`scroll ${scrollOffsetX}`, 6, height - 20, false, '#666');
     },
-    [scrollOffsetX, debug, shown],
+    [scrollOffsetX, debug, shown, ready],
   );
 
   if (!ready) {

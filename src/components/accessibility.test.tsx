@@ -1,29 +1,10 @@
-import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { Hud } from './Hud';
 import { StageView } from './StageView';
 import { KonamiPanel } from './KonamiPanel';
 import { loadGameSpec } from '../game/data';
-import { preloadSprites } from '../game/assets';
-
-// The shared asset loader decodes Image()s; stub a synchronous decode for jsdom.
-class FakeImage {
-  src = '';
-  naturalWidth = 1;
-  naturalHeight = 1;
-  complete = true;
-  decoding = 'async' as const;
-  onload: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  constructor() {
-    queueMicrotask(() => this.onload?.());
-  }
-}
-
-beforeAll(async () => {
-  vi.stubGlobal('Image', FakeImage);
-  await preloadSprites();
-});
+import './test-utils'; // stubs Image + preloads sprites + no-ops canvas draw (beforeAll)
 
 afterEach(() => cleanup());
 

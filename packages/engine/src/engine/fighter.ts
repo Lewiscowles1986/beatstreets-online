@@ -15,6 +15,8 @@ export interface GameContext {
   scrollX(): number;
   /** Spawn an enemy by name at a position (used by portals). */
   spawnEnemy(name: string, pos: Vec2): void;
+  /** Live cheat settings (god mode / one punch). */
+  cheat(): { godMode: boolean; onePunch: boolean };
 }
 
 /** A weapon/pickup the fighter can hold or throw (duck-typed). */
@@ -279,6 +281,17 @@ export abstract class Fighter {
           Math.abs(vec.x) < attack.reach + opponent.halfHitArea.x
         ) {
           opponent.hit(this, attack);
+
+          // ONE PUNCH cheat: any player->enemy hit kills the enemy outright.
+          if (this.game.cheat().onePunch && this.isPlayer() && opponent.isEnemy() && !opponent.isPortal()) {
+            opponent.health = 0;
+            opponent.stamina = 0;
+            opponent.lives = 1;
+            opponent.fallingState = FallingState.FALLING;
+            opponent.frame = 0;
+            opponent.useDieAnimation = Math.random() < 0.5;
+          }
+
           if (this.weapon && this.weapon.is_broken()) this.dropWeapon();
         }
       }
@@ -289,6 +302,8 @@ export abstract class Fighter {
   hit(hitter: unknown, attack: Attack): void {
     const cfg = this.game.config;
     if (this.fallingState !== FallingState.STANDING && this.fallingState !== FallingState.GRABBED) return;
+    // GOD MODE cheat: the player never takes damage.
+    if (this.game.cheat().godMode && this.isPlayer()) return;
     if (this.hitTimer <= 0) {
       this.stamina = Math.max(
         this.stamina - attack.strength * cfg.BASE_STAMINA_DAMAGE_MULTIPLIER * attack.staminaDamageMultiplier,
@@ -405,6 +420,16 @@ export abstract class Fighter {
 
   /** Called when the fighter is added to the game (its stage is reached). */
   spawned(): void {}
+
+  /** True for the player character. */
+  isPlayer(): boolean {
+    return false;
+  }
+
+  /** True for enemies. */
+  isEnemy(): boolean {
+    return false;
+  }
 
   // -- abstract hooks -------------------------------------------------
 

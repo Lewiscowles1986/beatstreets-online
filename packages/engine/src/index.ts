@@ -28,3 +28,4 @@ export * from './engine/player';
 export * from './engine/enemy';
 export * from './engine/enemies';
 export * from './engine/game';
+export * from './engine/cheat';
