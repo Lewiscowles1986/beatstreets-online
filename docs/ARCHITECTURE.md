@@ -22,9 +22,10 @@ src/game/dsl/        Zod schemas + normalisers per data file (config, characters
                      attacks, stages, story). Single source of truth.
 src/game/data.ts     Loads + validates all JSON into a GameSpec; resolves stages.
 src/game/assets.ts   Sprite + music asset loader (Vite glob import).
+src/game/core/       Pure logic ports: math (Vec2/clamp/remap/8-way angles), input
+                     (rising-edge), scene (SceneManager).
 src/game/render/     Render abstraction + CanvasRender implementation.
-src/game/core/       (planned) math, input, scene, engine (Fighter/Game/Stage).
-src/components/      React components: SpecOverview, StageView, canvas hook.
+src/components/      React components: SpecOverview, StageView, StageList, Hud, hook.
 e2e/                 Playwright specs (app smoke + Storybook screenshots).
 src/assets/          Copied game data (JSON) + sprites + music.
 ```

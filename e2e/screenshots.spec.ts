@@ -12,6 +12,10 @@ const STORIES: Array<{ id: string; file: string }> = [
   { id: 'game-stageview--stage-one', file: 'stage-one.png' },
   { id: 'game-stageview--stage-three-boss', file: 'stage-three-boss.png' },
   { id: 'game-stageview--stage-fourteen-portal', file: 'stage-fourteen-portal.png' },
+  { id: 'game-hud--full-health', file: 'hud-full-health.png' },
+  { id: 'game-hud--low-health', file: 'hud-low-health.png' },
+  { id: 'game-stagelist--first-five-stages', file: 'stagelist-first-five.png' },
+  { id: 'game-stagelist--late-game-stages', file: 'stagelist-late-game.png' },
 ];
 
 for (const story of STORIES) {
