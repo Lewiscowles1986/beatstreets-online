@@ -23,6 +23,7 @@ const STORIES: Array<{ id: string; file: string }> = [
   { id: 'game-gamecanvas--canvas-2-d', file: 'game-canvas-2d.png' },
   { id: 'input-gamepadpanel--live', file: 'gamepad-panel.png' },
   { id: 'input-websocketpanel--live', file: 'websocket-panel.png' },
+  { id: 'audio-audiopanel--live', file: 'audio-panel.png' },
   { id: 'scenes-titlescreen--logo-one', file: 'scene-title.png' },
   { id: 'scenes-controlsscreen--default', file: 'scene-controls.png' },
   { id: 'scenes-menuoverlay--pause-menu', file: 'scene-pause.png' },

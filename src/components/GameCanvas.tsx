@@ -4,6 +4,7 @@ import { loadGameSpec } from '../game/data';
 import { CanvasRender } from '../game/render/canvas-render';
 import { WebGLRender } from '../game/render/webgl-render';
 import { useSpriteAssets } from './useSpriteAssets';
+import { AudioController } from '../game/audio';
 import { TitleScreen } from './scenes/TitleScreen';
 import { ControlsScreen } from './scenes/ControlsScreen';
 import { MenuOverlay } from './scenes/MenuOverlay';
@@ -133,6 +134,7 @@ class Host {
   private isWebGL = false;
   private konami = new KonamiDetector();
   private controls: DisposableControls;
+  private audio = new AudioController();
   private lastDirections: [boolean, boolean, boolean, boolean] = [false, false, false, false];
   // Pause / cheat menu cursor state.
   private pauseCursor = 0;
@@ -313,11 +315,13 @@ class Host {
     this.pauseCursor = 0;
     this.cheatJustOpened = false;
     this.pauseJustOpened = false;
+    this.audio.playTheme();
   }
 
   endGame(): void {
     this.sceneManager.switch('game-over');
     this.notifyScene();
+    this.audio.pauseTheme();
   }
 
   toTitle(): void {
@@ -325,6 +329,7 @@ class Host {
     this.notifyScene();
     this.game = new Game(loadGameSpec(), this.controls);
     this.konami.reset();
+    this.audio.pauseTheme();
   }
 
   /** Edge-detect the four directions and map them to Konami tokens for this frame. */
