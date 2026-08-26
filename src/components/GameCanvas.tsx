@@ -310,7 +310,7 @@ class Host {
   }
 
   private drawWorld(render: Renderer): void {
-    render.clear(this.isWebGL ? '#0d0d0d' : '#0d0d0d');
+    this.drawBackground(render);
     const objs = [this.game.player, ...this.game.enemies].sort((a, b) => a.vpos.y - b.vpos.y);
     for (const o of objs) {
       render.blitSprite(o.determineSprite(), o.vpos.x - this.game.scrollOffset.x, o.vpos.y);
@@ -326,7 +326,32 @@ class Host {
       const sprite = powerupSprite(p);
       if (sprite) render.blitSprite(sprite, p.vpos.x - this.game.scrollOffset.x, p.vpos.y);
     }
+    // Scrolling arrow: shows when the stage can still scroll forward.
+    if (this.game.scrollOffset.x < this.game.maxScrollOffsetX && (this.game.timer / 30 | 0) % 2 === 0) {
+      render.blitSprite('arrow', this.width - 450, 120, ['left', 'top']);
+    }
     render.drawText(`Stage ${this.game.stageIndex + 1} · HP ${this.game.player.health} · score ${this.game.score}`, 8, this.height - 20, false, '#9ad0ff');
+  }
+
+  /** Draw the scrolling road + repeating background tiles (draw_background port). */
+  private drawBackground(render: Renderer): void {
+    const cfg = this.game.config;
+    const WIDTH = cfg.WIDTH;
+    // Two copies of the road, wrapped by scroll offset.
+    const road1x = -(this.game.scrollOffset.x % WIDTH);
+    render.blitSprite('road', road1x, 0, ['left', 'top']);
+    render.blitSprite('road', road1x + WIDTH, 0, ['left', 'top']);
+    // Background tiles laid out left->right across the level.
+    let posX = -this.game.scrollOffset.x - cfg.BACKGROUND_TILE_SPACING;
+    for (const tile of cfg.BACKGROUND_TILES) {
+      if (posX + 417 >= 0) {
+        render.blitSprite(tile, posX, 0, ['left', 'top']);
+        posX += cfg.BACKGROUND_TILE_SPACING;
+        if (posX >= WIDTH) break;
+      } else {
+        posX += cfg.BACKGROUND_TILE_SPACING;
+      }
+    }
   }
 
   present(): void {

@@ -123,7 +123,8 @@ export class WebGLRender {
     const tex = gl.createTexture();
     if (!tex) return null;
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+    // Do NOT flip Y on upload: the quad already maps v=0 to the sprite's top, so a
+    // flip here would invert the image (upside-down rendering).
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
