@@ -1,0 +1,1265 @@
+{
+  "stages": [
+    {
+      "enemies": [
+        {
+          "type": "EnemyVax",
+          "pos": [
+            1000,
+            400
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 300
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyVax",
+          "pos": [
+            1400,
+            400
+          ]
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            1500,
+            500
+          ]
+        }
+      ],
+      "weapons": [
+        {
+          "type": "Barrel",
+          "pos": [
+            1600,
+            400
+          ]
+        }
+      ],
+      "powerups": [],
+      "max_scroll_x": 600
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            200,
+            400
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 600
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            1800,
+            400
+          ]
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            400,
+            400
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 900
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            2100,
+            380
+          ]
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            2100,
+            480
+          ]
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            800,
+            420
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [
+        {
+          "type": "HealthPowerup",
+          "pos": [
+            2300,
+            "MIN_WALK_Y"
+          ]
+        }
+      ],
+      "max_scroll_x": 1400
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyVax",
+          "pos": [
+            2400,
+            380
+          ]
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            2500,
+            480
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            2800,
+            400
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 1900
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            3800,
+            380
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            3300,
+            480
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            1200,
+            400
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 2500
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyVax",
+          "pos": [
+            4000,
+            380
+          ]
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            3900,
+            480
+          ]
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            4200,
+            460
+          ]
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            4200,
+            450
+          ]
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            3900,
+            300
+          ]
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            3950,
+            320
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 3000
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyVax",
+          "pos": [
+            4600,
+            380
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            1200,
+            350
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            1400,
+            350
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            1600,
+            350
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            1800,
+            350
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            2000,
+            350
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [
+        {
+          "type": "HealthPowerup",
+          "pos": [
+            5100,
+            "MIN_WALK_Y"
+          ]
+        }
+      ],
+      "max_scroll_x": 3600
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            4800,
+            380
+          ]
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            4800,
+            350
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            1200,
+            350
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            1400,
+            350
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            4800,
+            350
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            4800,
+            400
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            4900,
+            450
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 4600
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            6500,
+            380
+          ]
+        },
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            6500,
+            360
+          ]
+        }
+      ],
+      "weapons": [
+        {
+          "type": "Barrel",
+          "pos": [
+            6000,
+            400
+          ]
+        },
+        {
+          "type": "Barrel",
+          "pos": [
+            5900,
+            370
+          ]
+        }
+      ],
+      "powerups": [],
+      "max_scroll_x": 5500
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            7000,
+            380
+          ]
+        },
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            7000,
+            360
+          ]
+        },
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            7000,
+            390
+          ]
+        }
+      ],
+      "weapons": [
+        {
+          "type": "Barrel",
+          "pos": [
+            7000,
+            380
+          ]
+        }
+      ],
+      "powerups": [],
+      "max_scroll_x": 6400
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyVax",
+          "pos": [
+            7500,
+            380
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            7500,
+            350
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            7500,
+            360
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 6900
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            8000,
+            380
+          ],
+          "start_timer": 50
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            8200,
+            340
+          ],
+          "start_timer": 100
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            8200,
+            340
+          ],
+          "start_timer": 150
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            7900,
+            360
+          ],
+          "start_timer": 200
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            8300,
+            390
+          ],
+          "start_timer": 250
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            8700,
+            400
+          ],
+          "start_timer": 300
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            8800,
+            400
+          ],
+          "start_timer": 400
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            8900,
+            400
+          ],
+          "start_timer": 500
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            9000,
+            320
+          ],
+          "start_timer": 600
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            9100,
+            400
+          ],
+          "start_timer": 700
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            9100,
+            450
+          ],
+          "start_timer": 800
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            9100,
+            420
+          ],
+          "start_timer": 900
+        },
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            9100,
+            450
+          ],
+          "start_timer": 1000
+        }
+      ],
+      "weapons": [],
+      "powerups": [
+        {
+          "type": "HealthPowerup",
+          "pos": [
+            8000,
+            "MIN_WALK_Y"
+          ]
+        },
+        {
+          "type": "ExtraLifePowerup",
+          "pos": [
+            8200,
+            "MIN_WALK_Y"
+          ]
+        }
+      ],
+      "max_scroll_x": 7550
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            8900,
+            400
+          ],
+          "spawns": [
+            "EnemyVax",
+            "EnemyHoodie"
+          ],
+          "spawn_interval": 120,
+          "spawn_interval_change": 30,
+          "max_spawn_interval": 250,
+          "max_enemies": 2
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 8400
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            9500,
+            400
+          ],
+          "spawns": [
+            "EnemyVax",
+            "EnemyHoodie"
+          ],
+          "spawn_interval": 120,
+          "spawn_interval_change": 50,
+          "max_spawn_interval": 250,
+          "max_enemies": 5
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            9500,
+            400
+          ],
+          "spawns": [
+            "EnemyScooterboy"
+          ],
+          "spawn_interval": 160,
+          "spawn_interval_change": 50,
+          "max_spawn_interval": 250,
+          "max_enemies": 5
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 8900
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            10000,
+            420
+          ],
+          "spawns": [
+            "EnemyVax",
+            "EnemyHoodie"
+          ],
+          "spawn_interval": 120,
+          "spawn_interval_change": 50,
+          "max_spawn_interval": 250,
+          "max_enemies": 5
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            10500,
+            320
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            10500,
+            350
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            10500,
+            380
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 9600
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            11200,
+            420
+          ],
+          "spawns": [
+            "EnemyHoodie"
+          ],
+          "spawn_interval": 40,
+          "spawn_interval_change": 10,
+          "max_spawn_interval": 250,
+          "max_enemies": 8
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 10800
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            12100,
+            340
+          ],
+          "spawns": [
+            "EnemyScooterboy"
+          ],
+          "spawn_interval": 40,
+          "spawn_interval_change": 20,
+          "max_spawn_interval": 250,
+          "max_enemies": 8
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            11900,
+            400
+          ],
+          "spawns": [
+            "EnemyScooterboy"
+          ],
+          "spawn_interval": 50,
+          "spawn_interval_change": 25,
+          "max_spawn_interval": 250,
+          "max_enemies": 8
+        }
+      ],
+      "weapons": [
+        {
+          "type": "Barrel",
+          "pos": [
+            11800,
+            380
+          ]
+        }
+      ],
+      "powerups": [
+        {
+          "type": "HealthPowerup",
+          "pos": [
+            12000,
+            "MIN_WALK_Y"
+          ]
+        },
+        {
+          "type": "HealthPowerup",
+          "pos": [
+            12500,
+            "MIN_WALK_Y"
+          ]
+        }
+      ],
+      "max_scroll_x": 11400
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            12900,
+            340
+          ],
+          "spawns": [
+            "EnemyBoss"
+          ],
+          "spawn_interval": 240,
+          "spawn_interval_change": 20,
+          "max_spawn_interval": 300,
+          "max_enemies": 4
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            13200,
+            320
+          ]
+        },
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            13200,
+            330
+          ]
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            13400,
+            360
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 12600
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            13600,
+            320
+          ],
+          "spawns": [
+            "EnemyVax"
+          ],
+          "spawn_interval": 230,
+          "spawn_interval_change": 20,
+          "max_spawn_interval": 300,
+          "max_enemies": 10
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            13600,
+            435
+          ],
+          "spawns": [
+            "EnemyHoodie"
+          ],
+          "spawn_interval": 240,
+          "spawn_interval_change": 20,
+          "max_spawn_interval": 300,
+          "max_enemies": 10
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            14000,
+            320
+          ],
+          "spawns": [
+            "EnemyScooterboy"
+          ],
+          "spawn_interval": 250,
+          "spawn_interval_change": 30,
+          "max_spawn_interval": 300,
+          "max_enemies": 10
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            14000,
+            435
+          ],
+          "spawns": [
+            "EnemyBoss"
+          ],
+          "spawn_interval": 260,
+          "spawn_interval_change": 30,
+          "max_spawn_interval": 300,
+          "max_enemies": 10
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 13400
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            14900,
+            320
+          ],
+          "spawns": [
+            "EnemyVax"
+          ],
+          "spawn_interval": 220,
+          "spawn_interval_change": 20,
+          "max_spawn_interval": 300,
+          "max_enemies": 8
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            14900,
+            435
+          ],
+          "spawns": [
+            "EnemyHoodie"
+          ],
+          "spawn_interval": 230,
+          "spawn_interval_change": 20,
+          "max_spawn_interval": 300,
+          "max_enemies": 8
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            15300,
+            320
+          ],
+          "spawns": [
+            "EnemyScooterboy"
+          ],
+          "spawn_interval": 240,
+          "spawn_interval_change": 20,
+          "max_spawn_interval": 300,
+          "max_enemies": 8
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            15300,
+            435
+          ],
+          "spawns": [
+            "EnemyBoss"
+          ],
+          "spawn_interval": 250,
+          "spawn_interval_change": 20,
+          "max_spawn_interval": 300,
+          "max_enemies": 8
+        }
+      ],
+      "weapons": [],
+      "powerups": [
+        {
+          "type": "HealthPowerup",
+          "pos": [
+            14650,
+            350
+          ]
+        }
+      ],
+      "max_scroll_x": 14700
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            15800,
+            350
+          ],
+          "spawns": [
+            "EnemyVax",
+            "EnemyHoodie",
+            "EnemyScooterboy"
+          ],
+          "spawn_interval": 60,
+          "spawn_interval_change": 20,
+          "max_spawn_interval": 300,
+          "max_enemies": 8
+        }
+      ],
+      "weapons": [],
+      "powerups": [
+        {
+          "type": "HealthPowerup",
+          "pos": [
+            16000,
+            "MIN_WALK_Y"
+          ]
+        }
+      ],
+      "max_scroll_x": 15400
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyVax",
+          "pos": [
+            17600,
+            300
+          ]
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            17900,
+            320
+          ]
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            17600,
+            340
+          ]
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            17900,
+            360
+          ]
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            17600,
+            380
+          ]
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            17900,
+            400
+          ]
+        },
+        {
+          "type": "EnemyVax",
+          "pos": [
+            17600,
+            420
+          ]
+        }
+      ],
+      "weapons": [
+        {
+          "type": "Barrel",
+          "pos": [
+            17000,
+            380
+          ]
+        }
+      ],
+      "powerups": [
+        {
+          "type": "HealthPowerup",
+          "pos": [
+            17000,
+            "MIN_WALK_Y"
+          ]
+        }
+      ],
+      "max_scroll_x": 16600
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            17800,
+            "MIN_WALK_Y"
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            18500,
+            380
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            18600,
+            380
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            18700,
+            380
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            18800,
+            380
+          ]
+        },
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            19000,
+            380
+          ]
+        }
+      ],
+      "weapons": [
+        {
+          "type": "Stick",
+          "pos": [
+            18000,
+            340
+          ]
+        }
+      ],
+      "powerups": [],
+      "max_scroll_x": 17400
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            18800,
+            320
+          ]
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            18900,
+            390
+          ],
+          "spawns": [
+            "EnemyVax",
+            "EnemyHoodie"
+          ],
+          "start_timer": 400,
+          "spawn_interval": 30,
+          "spawn_interval_change": 5,
+          "max_enemies": 10
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 18500
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyScooterboy",
+          "pos": [
+            19900,
+            340
+          ]
+        }
+      ],
+      "weapons": [
+        {
+          "type": "Barrel",
+          "pos": [
+            19400,
+            340
+          ]
+        }
+      ],
+      "powerups": [
+        {
+          "type": "HealthPowerup",
+          "pos": [
+            19600,
+            "MIN_WALK_Y"
+          ]
+        }
+      ],
+      "max_scroll_x": 19300
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyHoodie",
+          "pos": [
+            20900,
+            380
+          ],
+          "start_timer": 500
+        },
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            21500,
+            330
+          ]
+        },
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            21500,
+            350
+          ]
+        },
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            21500,
+            370
+          ]
+        },
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            21500,
+            390
+          ]
+        },
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            18200,
+            320
+          ]
+        },
+        {
+          "type": "EnemyBoss",
+          "pos": [
+            17800,
+            390
+          ]
+        }
+      ],
+      "weapons": [],
+      "powerups": [
+        {
+          "type": "ExtraLifePowerup",
+          "pos": [
+            20900,
+            "MIN_WALK_Y"
+          ]
+        }
+      ],
+      "max_scroll_x": 20500
+    },
+    {
+      "enemies": [
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            20700,
+            315
+          ],
+          "spawns": [
+            "EnemyVax"
+          ],
+          "start_timer": 600,
+          "spawn_interval": 60,
+          "spawn_interval_change": 5,
+          "max_enemies": 20
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            20700,
+            440
+          ],
+          "spawns": [
+            "EnemyHoodie"
+          ],
+          "start_timer": 600,
+          "spawn_interval": 60,
+          "spawn_interval_change": 10,
+          "max_enemies": 20
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            21100,
+            315
+          ],
+          "spawns": [
+            "EnemyScooterboy"
+          ],
+          "start_timer": 600,
+          "spawn_interval": 60,
+          "spawn_interval_change": 15,
+          "max_enemies": 20
+        },
+        {
+          "type": "EnemyPortal",
+          "pos": [
+            21100,
+            440
+          ],
+          "spawns": [
+            "EnemyBoss"
+          ],
+          "start_timer": 600,
+          "spawn_interval": 60,
+          "spawn_interval_change": 20,
+          "max_enemies": 20
+        }
+      ],
+      "weapons": [],
+      "powerups": [],
+      "max_scroll_x": 20500
+    }
+  ]
+}

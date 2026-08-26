@@ -1,0 +1,62 @@
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: flex-start;
+  min-height: 100vh;
+  background: #121212;
+  color: #eee;
+}
+
+.shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.shell h1 {
+  color: #ff4d4d;
+}
+
+.error {
+  color: #ff9b9b;
+  background: #3a1a1a;
+  padding: 0.75rem;
+  border-radius: 6px;
+}
+
+.spec {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 0.5rem 1rem;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1rem;
+  max-width: 420px;
+}
+
+.spec dt {
+  font-weight: 600;
+  color: #9ad0ff;
+}
+
+.spec dd {
+  margin: 0;
+}
+
+.links a {
+  display: inline-block;
+  margin-top: 1.5rem;
+  color: #ffd24d;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.links a:hover {
+  text-decoration: underline;
+}

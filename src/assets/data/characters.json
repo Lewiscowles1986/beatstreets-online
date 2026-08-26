@@ -1,0 +1,36 @@
+{
+  "characters": {
+    "vax": {
+      "name": "vax",
+      "attacks": ["vax_lpunch", "vax_rpunch", "vax_pound"],
+      "score": 20
+    },
+    "hoodie": {
+      "name": "hoodie",
+      "attacks": ["hoodie_lpunch", "hoodie_rpunch", "hoodie_special"],
+      "health": 12,
+      "speed": [1.2, 1],
+      "score": 20
+    },
+    "scooterboy": {
+      "name": "scooterboy",
+      "attacks": ["scooterboy_attack1"],
+      "approach_player_distance": 140,
+      "score": 30,
+      "scooter_speed_slow": 4,
+      "scooter_speed_fast": 12,
+      "scooter_acceleration": 0.2,
+      "scooter_hit_attack": "scooter_hit"
+    },
+    "boss": {
+      "name": "boss",
+      "attacks": ["boss_lpunch", "boss_rpunch", "boss_kick", "boss_grab_player"],
+      "speed": [0.9, 0.8],
+      "health": 25,
+      "stamina": 1000,
+      "anchor_y": 280,
+      "half_hit_area": [30, 20],
+      "score": 75
+    }
+  }
+}
