@@ -115,13 +115,37 @@ export function KonamiPanel({ buttonKeys = DEFAULT_BUTTONS }: KonamiPanelProps) 
 
   const expected = KONAMI[progress] ?? '—';
 
+  // buttonKeys is [button0, button1, button2, button3] = [punch, kick, elbow, flying-kick].
+  // A = button0, B = button1 (these end the Konami code).
+  const [aKey, bKey, elbowKey, flyKey] = buttonKeys;
+  const bindings: Array<[string, string, string]> = [
+    ['A', aKey, 'punch'],
+    ['B', bKey, 'kick'],
+    ['C', elbowKey, 'elbow'],
+    ['D', flyKey, 'flying kick'],
+  ];
+
   return (
     <section aria-label="Input and Konami code panel" style={{ fontFamily: 'monospace', border: '1px solid #444', padding: 16, maxWidth: 560 }}>
       <h3 style={{ margin: '0 0 8px' }}>Input + Konami panel</h3>
       <p style={{ fontSize: 12, margin: '0 0 12px', color: '#aaa' }}>
-        Press arrow keys and {buttonKeys.join(', ')}. Enter the Konami code to unlock.
+        Move with the arrow keys. Enter the Konami code to unlock.
       </p>
-      <div role="group" aria-label="Controller state">
+      <div role="group" aria-label="Button bindings">
+        <h4 style={{ margin: '0 0 6px', fontSize: 13 }}>Buttons</h4>
+        <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'auto auto 1fr', gap: '4px 10px' }}>
+          {bindings.map(([label, key, action]) => (
+            <div key={label} style={{ display: 'contents' }}>
+              <dt style={{ margin: 0, fontWeight: 700 }}>{label}</dt>
+              <dd style={{ margin: 0 }}>
+                <kbd>{key}</kbd>
+              </dd>
+              <dd style={{ margin: 0, color: '#aaa' }}>{action}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <div role="group" aria-label="Controller state" style={{ marginTop: 12 }}>
         <div>Axis: x={axis.x.toFixed(1)} y={axis.y.toFixed(1)}</div>
         <div>Held buttons: [{held.join(', ')}]</div>
         <div>

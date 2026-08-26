@@ -17,9 +17,11 @@ export default meta;
 type Story = StoryObj<typeof KonamiPanel>;
 
 export const DefaultKeyboard: Story = {
+  name: 'Default (A=space, B=x)',
   args: { buttonKeys: [' ', 'x', 'c', 'a'] },
 };
 
 export const AltBindings: Story = {
+  name: 'Alt (A=j, B=k)',
   args: { buttonKeys: ['j', 'k', 'l', ';'] },
 };
