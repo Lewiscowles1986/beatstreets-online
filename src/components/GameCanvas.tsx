@@ -1,10 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Game, Scene, SceneManager, KonamiDetector, Barrel, Stick, Chain, HealthPowerup, ExtraLifePowerup } from '@beatstreets/engine';
 import { loadGameSpec } from '../game/data';
 import { CanvasRender } from '../game/render/canvas-render';
 import { WebGLRender } from '../game/render/webgl-render';
-import { SPRITES } from '../game/assets';
 import { useSpriteAssets } from './useSpriteAssets';
+import { TitleScreen } from './scenes/TitleScreen';
+import { ControlsScreen } from './scenes/ControlsScreen';
+import { MenuOverlay } from './scenes/MenuOverlay';
+import { GameOverScreen } from './scenes/GameOverScreen';
+import { IntroOutroText } from './scenes/IntroOutroText';
+import { CheatOverlay } from './scenes/CheatOverlay';
 
 export interface GameCanvasProps {
   /** The (1-based) stage to start on. */
@@ -29,20 +34,41 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
   if (hostRef.current === null) {
     hostRef.current = new Host(width, height, stage, debug, forceCanvas2D);
   }
+  const [ov, setOv] = useState(() => ({
+    scene: 'title' as string,
+    titleFrame: 0,
+    pauseCursor: 0,
+    score: 0,
+    won: false,
+    textActive: false,
+    text: '',
+    displayedText: '',
+    timer: 0,
+    cheatCursor: 0,
+    cheatStage: 1,
+    cheatStageSelect: false,
+    godMode: false,
+    onePunch: false,
+  }));
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     // Attach (and size) the canvas once sprites are ready and it is mounted.
     host.attach(canvasRef.current);
+    // Mirror the Host's render-relevant state into React so overlays render from state.
+    const refresh = () => setOv(host.getOverlayState());
+    host.setOnSceneChange(refresh);
     let raf = 0;
     const step = () => {
       host.tick();
+      refresh();
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => {
       cancelAnimationFrame(raf);
+      host.setOnSceneChange(null);
       host.detach();
     };
   }, [width, height, ready]);
@@ -59,12 +85,34 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
     );
   }
 
+  const scene = ov.scene;
+
   return (
-    <canvas
-      ref={canvasRef}
-      role="application"
-      aria-label={`Beat Streets game, stage ${stage}. Use arrow keys to move and space to attack.`}
-    />
+    <div style={{ position: 'relative', width, height }} data-scene={scene}>
+      <canvas
+        ref={canvasRef}
+        role="application"
+        aria-label={`Beat Streets game, stage ${stage}. Use arrow keys to move and space to attack.`}
+      />
+      {scene === 'title' && <TitleScreen width={width} height={height} frame={ov.titleFrame} />}
+      {scene === 'controls' && <ControlsScreen width={width} height={height} />}
+      {scene === 'pause' && (
+        <MenuOverlay
+          width={width}
+          height={height}
+          title="PAUSED"
+          items={[{ label: 'RESUME' }, { label: 'QUIT' }]}
+          cursor={ov.pauseCursor}
+          hint="UP/DOWN SELECT   SPACE CONFIRM   ESC RESUME"
+          ariaLabel="Pause menu"
+        />
+      )}
+      {scene === 'cheat' && <CheatOverlay width={width} height={height} cursor={ov.cheatCursor} godMode={ov.godMode} onePunch={ov.onePunch} stageSelect={ov.cheatStageSelect} stage={ov.cheatStage} />}
+      {scene === 'game-over' && <GameOverScreen width={width} height={height} won={ov.won} score={ov.score} />}
+      {scene === 'play' && ov.textActive && (
+        <IntroOutroText width={width} height={height} text={ov.text} displayedText={ov.displayedText} textActive={ov.textActive} timer={ov.timer} />
+      )}
+    </div>
   );
 }
 
@@ -88,6 +136,41 @@ class Host {
   private pauseCursor = 0;
   private cheatJustOpened = false;
   private pauseJustOpened = false;
+  private onSceneChange: (() => void) | null = null;
+
+  /** Subscribe to scene transitions so React can render overlays. */
+  setOnSceneChange(cb: (() => void) | null): void {
+    this.onSceneChange = cb;
+  }
+
+  /** Current scene name (for the React overlay). */
+  sceneName(): string {
+    return this.sceneManager.current ?? 'title';
+  }
+
+  /** A plain snapshot of everything the React overlays need (no ref reads in render). */
+  getOverlayState() {
+    return {
+      scene: this.sceneName(),
+      titleFrame: this.titleFrame,
+      pauseCursor: this.pauseCursor,
+      score: this.game.score,
+      won: this.game.checkWon(),
+      textActive: this.game.textActive,
+      text: this.game.currentText,
+      displayedText: this.game.displayedText,
+      timer: this.game.timer,
+      cheatCursor: this.game.cheatState.cursor,
+      cheatStage: this.game.cheatState.stage,
+      cheatStageSelect: this.game.cheatState.mode === 'stage-select',
+      godMode: this.game.cheatState.settings.godMode,
+      onePunch: this.game.cheatState.settings.onePunch,
+    };
+  }
+
+  private notifyScene(): void {
+    this.onSceneChange?.();
+  }
 
   constructor(width: number, height: number, stage: number, debug: boolean, forceCanvas2D: boolean) {
     this.width = width;
@@ -215,10 +298,12 @@ class Host {
 
   toControls(): void {
     this.sceneManager.switch('controls');
+    this.notifyScene();
   }
 
   startPlay(): void {
     this.sceneManager.switch('play');
+    this.notifyScene();
     this.game = new Game(loadGameSpec(), this.controls);
     this.game.jumpToStage(this.stage);
     this.konami.reset();
@@ -229,10 +314,12 @@ class Host {
 
   endGame(): void {
     this.sceneManager.switch('game-over');
+    this.notifyScene();
   }
 
   toTitle(): void {
     this.sceneManager.switch('title');
+    this.notifyScene();
     this.game = new Game(loadGameSpec(), this.controls);
     this.konami.reset();
   }
@@ -258,12 +345,14 @@ class Host {
 
     if (this.konami.feedMany(tokens)) {
       this.sceneManager.switch('cheat');
+      this.notifyScene();
       this.cheatJustOpened = true;
       this.game.cheatState.reset();
       return;
     }
     if (tokens.includes('escape')) {
       this.sceneManager.switch('pause');
+      this.notifyScene();
       this.pauseCursor = 0;
       this.pauseJustOpened = true;
     }
@@ -281,8 +370,10 @@ class Host {
     if (this.controls.pressed(0)) {
       if (this.pauseCursor === 0) this.sceneManager.switch('play'); // RESUME
       else this.toTitle(); // QUIT
+      this.notifyScene();
     }
     if (this.controls.escPressed()) this.sceneManager.switch('play');
+    this.notifyScene();
   }
 
   updateCheat(): void {
@@ -362,96 +453,37 @@ class Host {
   }
 
   drawTitle(): void {
-    const render = this.render;
-    if (!render) return;
-    render.clear('#000');
-    const logo = this.titleFrame % 40 < 20 ? 'title0' : 'title1';
-    if (SPRITES[logo]) render.blitSprite(logo, this.width / 2, this.height / 2);
-    render.drawText('PRESS SPACE OR Z', this.width / 2, this.height - 50, true, '#fff');
+    // Rendered as a React overlay (TitleScreen) — clear the base canvas only.
+    this.render?.clear('#000');
   }
 
   drawGame(): void {
     const render = this.render;
     if (!render) return;
     this.drawWorld(render);
-    // Intro/outro story text overlay (typewriter), then fade it away.
-    // Matches the Python game: a black overlay is opaque during the text and fades
-    // out over ~255 frames after the text is dismissed (timer resets to 0 on skip).
-    if (this.game.textActive || this.game.timer < 255) {
-      const alpha = this.game.textActive ? 255 : Math.max(0, 255 - this.game.timer);
-      render.fillRect(0, 0, this.width, this.height, `rgba(0,0,0,${alpha / 255})`);
-      if (this.game.textActive) {
-        render.drawText(this.game.displayedText, 50, 50, false, '#fff');
-      }
-    }
+    // Intro/outro text is rendered as a React overlay (IntroOutroText) when active.
   }
 
   drawControls(): void {
-    const render = this.render;
-    if (!render) return;
-    render.clear('#000');
-    render.drawText('CONTROLS', this.width / 2, 100, true, '#fff');
-    render.drawText('MOVE  ARROWS / WASD', this.width / 2, 170, true, '#9ad0ff');
-    render.drawText('PUNCH  SPACE / Z', this.width / 2, 200, true, '#9ad0ff');
-    render.drawText('KICK  X', this.width / 2, 230, true, '#9ad0ff');
-    render.drawText('ELBOW  C', this.width / 2, 260, true, '#9ad0ff');
-    render.drawText('FLYING KICK  A', this.width / 2, 290, true, '#9ad0ff');
-    render.drawText('PRESS SPACE TO START', this.width / 2, this.height - 60, true, '#fff');
+    // Rendered as a React overlay (ControlsScreen) — clear the base canvas only.
+    this.render?.clear('#000');
   }
 
   drawGameOver(): void {
-    const render = this.render;
-    if (!render) return;
-    render.clear('#000');
-    const won = this.game.checkWon();
-    render.drawText(won ? 'YOU WIN!' : 'GAME OVER', this.width / 2, this.height / 2 - 20, true, '#fff');
-    render.drawText(`SCORE ${this.game.score}`, this.width / 2, this.height / 2 + 20, true, '#ffd24d');
-    render.drawText('PRESS SPACE', this.width / 2, this.height - 60, true, '#fff');
+    // Rendered as a React overlay (GameOverScreen) — clear the base canvas only.
+    this.render?.clear('#000');
   }
 
   drawPause(): void {
+    // Rendered as a React overlay (MenuOverlay) — leave the paused world visible below.
     const render = this.render;
-    if (!render) return;
-    this.drawWorld(render);
-    render.fillRect(0, 0, this.width, this.height, 'rgba(0,0,0,0.7)');
-    render.drawText('PAUSED', this.width / 2, 120, true, '#fff');
-    const lines = ['RESUME', 'QUIT'];
-    for (let i = 0; i < lines.length; i++) {
-      const y = 200 + i * 60;
-      if (i === this.pauseCursor) {
-        render.fillRect(this.width / 2 - 120, y - 5, 240, 60, '#aa1e1e');
-      }
-      render.drawText(lines[i], this.width / 2, y, true, '#fff');
-    }
-    render.drawText('UP/DOWN SELECT   SPACE CONFIRM   ESC RESUME', this.width / 2, this.height - 40, true, '#9ad0ff');
+    if (render) this.drawWorld(render);
   }
 
   drawCheat(): void {
+    // Rendered as a React overlay (CheatOverlay) — leave the world visible below.
     const render = this.render;
-    if (!render) return;
-    this.drawWorld(render);
-    render.fillRect(0, 0, this.width, this.height, 'rgba(0,0,0,0.7)');
-    const cs = this.game.cheatState;
-    if (cs.mode === 'stage-select') {
-      render.drawText('STAGE SELECT', this.width / 2, 120, true, '#fff');
-      render.drawText(`STAGE ${String(cs.stage).padStart(2, '0')}`, this.width / 2, 210, true, '#ffd24d');
-      render.drawText('UP/DOWN PICK   SPACE JUMP   X BACK', this.width / 2, 320, true, '#9ad0ff');
-      return;
-    }
-    render.drawText('CHEAT MENU', this.width / 2, 80, true, '#fff');
-    const lines = [
-      'STAGE SELECT',
-      `GOD MODE   - ${cs.settings.godMode ? 'ON' : 'OFF'}`,
-      `ONE PUNCH  - ${cs.settings.onePunch ? 'ON' : 'OFF'}`,
-    ];
-    for (let i = 0; i < lines.length; i++) {
-      const y = 170 + i * 60;
-      if (i === cs.cursor) {
-        render.fillRect(this.width / 2 - 150, y - 5, 300, 60, '#aa1e1e');
-      }
-      render.drawText(lines[i], this.width / 2, y, true, '#fff');
-    }
-    render.drawText('UP/DOWN SELECT   SPACE CONFIRM   X CLOSE', this.width / 2, this.height - 40, true, '#9ad0ff');
+    if (render) this.drawWorld(render);
   }
 }
 
