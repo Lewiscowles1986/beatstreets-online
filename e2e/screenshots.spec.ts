@@ -21,6 +21,12 @@ const STORIES: Array<{ id: string; file: string }> = [
   { id: 'game-playablestage--stage-one', file: 'playable-stage-one.png' },
   { id: 'game-gamecanvas--default', file: 'game-canvas-default.png' },
   { id: 'game-gamecanvas--canvas-2-d', file: 'game-canvas-2d.png' },
+  { id: 'scenes-titlescreen--logo-one', file: 'scene-title.png' },
+  { id: 'scenes-controlsscreen--default', file: 'scene-controls.png' },
+  { id: 'scenes-menuoverlay--pause-menu', file: 'scene-pause.png' },
+  { id: 'scenes-menuoverlay--cheat-menu', file: 'scene-cheat.png' },
+  { id: 'scenes-gameoverscreen--lose', file: 'scene-game-over.png' },
+  { id: 'scenes-introoutrotext--active', file: 'scene-intro-text.png' },
 ];
 
 for (const story of STORIES) {
