@@ -1,5 +1,6 @@
 import { CanvasRender } from '../game/render/canvas-render';
 import { useCanvas } from './useCanvas';
+import { useSpriteAssets } from './useSpriteAssets';
 import { clamp } from '@beatstreets/engine';
 
 export interface HUDProps {
@@ -35,6 +36,7 @@ export function Hud({
   height = 480,
   debug = false,
 }: HUDProps) {
+  const { ready } = useSpriteAssets();
   const canvasRef = useCanvas(width, height, (ctx) => {
     const render = new CanvasRender(ctx, width, height);
     render.clear('#000');
@@ -64,7 +66,15 @@ export function Hud({
       render.drawText(`HP ${health}/${maxHealth}`, 48, 48, false, '#ff6b6b');
       render.drawText(`ST ${stamina}/${maxStamina}`, 517, 48, false, '#ffd24d');
     }
-  });
+  }, [health, maxHealth, stamina, maxStamina, lives, score, debug]);
+
+  if (!ready) {
+    return (
+      <div style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontFamily: 'monospace' }}>
+        loading sprites…
+      </div>
+    );
+  }
 
   return <canvas ref={canvasRef} aria-label="HUD status bar" />;
 }

@@ -2,10 +2,15 @@ import { useEffect, useRef } from 'react';
 
 /**
  * A React hook that gives a component a managed 2D canvas and its rendering context,
- * sized to a fixed width/height. The `draw` callback runs once on mount (and whenever
- * `draw` identity changes if `redrawOnChange` is used by the caller).
+ * sized to a fixed width/height. The `draw` callback runs on mount and again whenever
+ * `width`, `height`, or any `redrawDeps` change.
  */
-export function useCanvas(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) {
+export function useCanvas(
+  width: number,
+  height: number,
+  draw: (ctx: CanvasRenderingContext2D) => void,
+  redrawDeps: readonly unknown[] = [],
+) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawRef = useRef(draw);
 
@@ -13,6 +18,10 @@ export function useCanvas(width: number, height: number, draw: (ctx: CanvasRende
   useEffect(() => {
     drawRef.current = draw;
   });
+
+  // A stable serialised key from the caller's redraw deps; the effect depends on this
+  // single string so eslint can statically verify the dependency list.
+  const redrawKey = JSON.stringify(redrawDeps);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -27,7 +36,7 @@ export function useCanvas(width: number, height: number, draw: (ctx: CanvasRende
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawRef.current(ctx);
-  }, [width, height]);
+  }, [width, height, redrawKey]);
 
   return canvasRef;
 }

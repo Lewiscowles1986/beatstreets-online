@@ -1,4 +1,4 @@
-import { SPRITES, spriteUrl } from '../assets';
+import { getSpriteImage } from '../assets';
 
 /**
  * Minimal render abstraction over a 2D canvas.
@@ -7,6 +7,9 @@ import { SPRITES, spriteUrl } from '../assets';
  * (blit a sprite, draw text/rects, scroll the world by an offset) without cloning the
  * pygame API. The engine draws through this interface; a WebGL backend can replace
  * CanvasRender later without touching game logic.
+ *
+ * Sprites come from the shared {@link getSpriteImage} cache, so callers must preload
+ * assets (via {@link preloadSprites}) before the first frame draws.
  */
 export interface Render {
   /** Draw a sprite at world (or screen) coords with an optional anchor. */
@@ -32,11 +35,7 @@ export class CanvasRender implements Render {
   ) {}
 
   private load(name: string): HTMLImageElement | undefined {
-    const url = spriteUrl(name);
-    if (!url) return undefined;
-    const img = new Image();
-    img.src = url;
-    return img;
+    return getSpriteImage(name) ?? undefined;
   }
 
   blitSprite(name: string, x: number, y: number, anchor: [string, string] = ['center', 'bottom']): void {
@@ -44,6 +43,7 @@ export class CanvasRender implements Render {
     if (!img) return;
     const w = img.naturalWidth || img.width || 0;
     const h = img.naturalHeight || img.height || 0;
+    if (!w || !h) return;
     let dx = x;
     let dy = y;
     if (anchor[0] === 'center') dx -= w / 2;
@@ -85,6 +85,3 @@ export class CanvasRender implements Render {
     this.ctx.fillRect(0, 0, this.width, this.height);
   }
 }
-
-/** Sprite map is exported for tests/consumers that need to introspect assets. */
-export { SPRITES };

@@ -2,6 +2,8 @@ import { CanvasRender } from '../game/render/canvas-render';
 import { loadResolvedStages } from '../game/data';
 import { Stage } from '@beatstreets/engine';
 import { useCanvas } from './useCanvas';
+import { useSpriteAssets } from './useSpriteAssets';
+import { spriteFor } from './spriteFor';
 
 export interface StageListProps {
   /** The stages to compose, in order. Defaults to the full game's stages. */
@@ -17,37 +19,12 @@ export interface StageListProps {
   debug?: boolean;
 }
 
-/** Map each entity type to its representative sprite for preview. */
-function spriteFor(type: string): string {
-  switch (type) {
-    case 'EnemyVax':
-      return 'vax_stand_0_0_0';
-    case 'EnemyHoodie':
-      return 'hoodie_stand_0_0_2';
-    case 'EnemyScooterboy':
-      return 'scooterboy_bike_0_0_2';
-    case 'EnemyBoss':
-      return 'boss_stand_1_0_2';
-    case 'EnemyPortal':
-      return 'portal_grow_2';
-    case 'Barrel':
-      return 'barrel_roll_1_2_shadow';
-    case 'Stick':
-      return 'hero_pickup_stick_1_0';
-    case 'HealthPowerup':
-      return 'health_pickup';
-    case 'ExtraLifePowerup':
-      return 'status_life9';
-    default:
-      return 'hero_stand_1_0_shadow';
-  }
-}
-
 /**
  * Composes multiple stages end-to-end from their DSL specs: each stage is a horizontal
  * slice of the world (its entities offset by the cumulative scroll of prior stages),
- * so the full game reads as one continuous, scrolling level. This is the "place
- * multiple stages next to one another, loading from JSON" view.
+ * so the full game reads as one continuous, scrolling level. Waits for the shared
+ * sprite preloader before drawing. This is the "place multiple stages next to one
+ * another, loading from JSON" view.
  */
 export function StageList({
   stages,
@@ -57,29 +34,43 @@ export function StageList({
   height = 480,
   debug = false,
 }: StageListProps) {
+  const { ready } = useSpriteAssets();
   const all = stages ?? loadResolvedStages().stages;
   const shown = count ? all.slice(0, count) : all;
 
-  // Cumulative world offsets: each stage begins where the previous one ended (minus a
-  // small gap so stage boundaries are visually distinguishable).
+  // Cumulative world offsets: each stage begins where the previous one ended (plus a
+  // gap so stage boundaries are visually distinguishable).
   const offsets = buildOffsets(shown);
 
-  const canvasRef = useCanvas(width, height, (ctx) => {
-    const render = new CanvasRender(ctx, width, height);
-    render.clear('#141414');
-    render.fillRect(0, 360, width, 2, '#444');
+  const canvasRef = useCanvas(
+    width,
+    height,
+    (ctx) => {
+      const render = new CanvasRender(ctx, width, height);
+      render.clear('#141414');
+      render.fillRect(0, 360, width, 2, '#444');
+      render.fillRect(0, 360, width, height - 360, '#0b0b0b');
 
-    shown.forEach((stage, si) => {
-      const baseX = offsets[si];
-      drawStage(render, stage, baseX, scrollOffsetX, width, debug);
-      if (debug) {
-        render.drawText(`Stage ${si + 1}`, baseX - scrollOffsetX, 20, true, '#9ad0ff');
-      }
-    });
+      shown.forEach((stage, si) => {
+        const baseX = offsets[si];
+        drawStage(render, stage, baseX, scrollOffsetX, width, debug);
+        if (debug) {
+          render.drawText(`Stage ${si + 1}`, baseX - scrollOffsetX, 20, true, '#9ad0ff');
+        }
+      });
 
-    // A scroll indicator so the continuous world is legible.
-    render.drawText(`scroll ${scrollOffsetX}`, 6, height - 20, false, '#666');
-  });
+      render.drawText(`scroll ${scrollOffsetX}`, 6, height - 20, false, '#666');
+    },
+    [scrollOffsetX, debug, shown],
+  );
+
+  if (!ready) {
+    return (
+      <div style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontFamily: 'monospace' }}>
+        loading sprites…
+      </div>
+    );
+  }
 
   return <canvas ref={canvasRef} aria-label={`${shown.length} stages composed end-to-end`} />;
 }
