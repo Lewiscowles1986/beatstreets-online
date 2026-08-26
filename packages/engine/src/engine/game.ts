@@ -58,7 +58,10 @@ export class Game implements GameContext {
   private stages: Stage[];
   private attacks: GameSpec['attacks'];
   private characters: GameSpec['characters'];
+  private story: GameSpec['story'];
   private soundsPlayed: string[] = [];
+  private introText = '';
+  private outroText = '';
 
   constructor(
     spec: GameSpec,
@@ -67,11 +70,20 @@ export class Game implements GameContext {
     this.config = spec.config;
     this.attacks = spec.attacks;
     this.characters = spec.characters;
+    this.story = spec.story;
     this.stages = spec.stages.stages;
     this.cheatState = new CheatState(this.stages.length);
     this.player = new Player(this, controls);
     this.boundary = { left: 0, top: this.config.MIN_WALK_Y, right: this.config.WIDTH - 1, bottom: this.config.HEIGHT - 1 };
     this.textActive = spec.config.INTRO_ENABLED;
+    // Intro/outro story text (data-driven from story.json).
+    const stolen = this.story.stolen_items[Math.floor(Math.random() * this.story.stolen_items.length)] ?? '';
+    this.introText = this.story.intro_prefix + stolen + this.story.intro_suffix;
+    this.outroText = this.story.outro;
+    if (this.textActive) {
+      this.currentText = this.introText;
+      this.displayedText = '';
+    }
   }
 
   // -- GameContext -----------------------------------------------------
@@ -123,6 +135,8 @@ export class Game implements GameContext {
     } else if (!this.outroActive) {
       this.outroActive = true;
       this.textActive = true;
+      this.currentText = this.outroText;
+      this.displayedText = '';
       this.timer = 0;
     }
   }
@@ -280,7 +294,11 @@ export class Game implements GameContext {
 
   private updateText(): void {
     if (this.timer % 6 === 0 && this.displayedText.length < this.currentText.length) {
-      this.displayedText = this.currentText.slice(0, this.timer / 6);
+      const lengthToDisplay = Math.min(Math.floor(this.timer / 6), this.currentText.length);
+      this.displayedText = this.currentText.slice(0, lengthToDisplay);
+      // Teletype sound when a visible (non-space) character is added.
+      const lastChar = this.displayedText[this.displayedText.length - 1];
+      if (lastChar && !/\s/.test(lastChar)) this.playSound('teletype');
     }
     // Player skips text with any button press.
     for (let b = 0; b < 4; b++) {
@@ -325,5 +343,15 @@ export class Game implements GameContext {
 
   stageCount(): number {
     return this.stages.length;
+  }
+
+  /** The intro story text (for rendering during the opening scene). */
+  getIntroText(): string {
+    return this.introText;
+  }
+
+  /** The outro story text shown after the final stage. */
+  getOutroText(): string {
+    return this.outroText;
   }
 }

@@ -259,3 +259,77 @@ describe('Game engine', () => {
     expect(game.enemies).not.toContain(enemy);
   });
 });
+
+describe('Game story text (intro/outro)', () => {
+  // Build a spec with intro enabled + story content.
+  function storySpec() {
+    const base = testSpec();
+    return {
+      ...base,
+      config: { ...base.config, INTRO_ENABLED: true },
+      story: {
+        intro_prefix: 'THE EVIL BOSS STOLE ',
+        stolen_items: ['THE TREASURE', 'THE MAP'],
+        intro_suffix: '.\nFIGHT TO RECLAIM!',
+        outro: 'YOU SAVED THE DAY.',
+      },
+    };
+  }
+
+  it('shows the intro text with a random stolen item when the game starts', () => {
+    const game = new Game(storySpec(), new FakeControls());
+    expect(game.textActive).toBe(true);
+    expect(game.getIntroText()).toContain('THE EVIL BOSS STOLE');
+    expect(game.getIntroText()).toContain('FIGHT TO RECLAIM!');
+    expect(game.getIntroText()).toMatch(/THE TREASURE|THE MAP/);
+  });
+
+  it('typewriter-reveals the text over time and plays teletype sound', () => {
+    const game = new Game(storySpec(), new FakeControls());
+    // Advance ~30 frames; some of the intro should be displayed.
+    for (let i = 0; i < 30; i++) game.update();
+    expect(game.displayedText.length).toBeGreaterThan(0);
+    expect(game.displayedText.length).toBeLessThanOrEqual(game.currentText.length);
+    expect(game.sounds()).toContain('teletype');
+  });
+
+  it('skips the intro when a button is pressed', () => {
+    const game = new Game(storySpec(), new FakeControls());
+    const controls = game.player.controls as FakeControls;
+    controls.press(0);
+    game.update();
+    expect(game.textActive).toBe(false);
+  });
+
+  it('shows the outro after the final stage is cleared', () => {
+    const game = new Game(storySpec(), new FakeControls());
+    // Skip intro.
+    (game.player.controls as FakeControls).press(0);
+    game.update();
+    // Simulate completing the last stage.
+    game.stageIndex = game.stageCount() - 1;
+    game.enemies = [];
+    game.maxScrollOffsetX = 0;
+    game.scrollOffset = new Vec2(0, 0);
+    game.nextStage();
+    expect(game.outroActive).toBe(true);
+    expect(game.textActive).toBe(true);
+    expect(game.getOutroText()).toBe('YOU SAVED THE DAY.');
+    expect(game.checkWon()).toBe(false); // outro still being read
+  });
+
+  it('wins only after the outro is dismissed', () => {
+    const game = new Game(storySpec(), new FakeControls());
+    (game.player.controls as FakeControls).press(0);
+    game.update();
+    game.stageIndex = game.stageCount() - 1;
+    game.enemies = [];
+    game.maxScrollOffsetX = 0;
+    game.scrollOffset = new Vec2(0, 0);
+    game.nextStage();
+    // Dismiss the outro.
+    (game.player.controls as FakeControls).press(0);
+    game.update();
+    expect(game.checkWon()).toBe(true);
+  });
+});

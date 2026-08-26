@@ -347,7 +347,13 @@ class Host {
 
   drawGame(): void {
     const render = this.render;
-    if (render) this.drawWorld(render);
+    if (!render) return;
+    this.drawWorld(render);
+    // Intro/outro story text overlay (typewriter).
+    if (this.game.textActive) {
+      render.fillRect(0, 0, this.width, this.height, 'rgba(0,0,0,0.85)');
+      render.drawText(this.game.displayedText, 50, 50, false, '#fff');
+    }
   }
 
   drawControls(): void {
