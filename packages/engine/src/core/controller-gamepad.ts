@@ -65,9 +65,16 @@ export class GamepadController extends Controller {
   }
 }
 
+/** A minimal structural view of a browser Gamepad (keeps the engine DOM-free). */
+export interface RawGamepad {
+  id: string;
+  buttons: Array<{ pressed: boolean }>;
+  axes: number[];
+}
+
 /** Resolve a browser `navigator.getGamepads()` snapshot into {@link GamepadLike}s. */
 export function gamepadSnapshot(
-  getGamepads: () => (Gamepad | null)[],
+  getGamepads: () => (RawGamepad | null)[],
 ): GamepadLike[] {
   const out: GamepadLike[] = [];
   for (const pad of getGamepads()) {

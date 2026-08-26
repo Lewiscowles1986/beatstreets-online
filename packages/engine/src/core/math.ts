@@ -36,6 +36,11 @@ export class Vec2 {
     return Math.hypot(this.x, this.y);
   }
 
+  /** True when x and y match the other vector exactly. */
+  equals(o: Vec2): boolean {
+    return this.x === o.x && this.y === o.y;
+  }
+
   /** Unit vector, or a zero vector when length is 0. */
   normalize(): Vec2 {
     const len = this.length();
@@ -117,6 +122,16 @@ export function remapClamp(oldVal: number, oldMin: number, oldMax: number, newMi
   const lower = Math.min(newMin, newMax);
   const upper = Math.max(newMin, newMax);
   return Math.min(upper, Math.max(lower, remap(oldVal, oldMin, oldMax, newMin, newMax)));
+}
+
+/** Random integer in [min, max] inclusive. */
+export function randInt(min: number, max: number, rng: () => number = Math.random): number {
+  return Math.floor(rng() * (max - min + 1)) + min;
+}
+
+/** Random element from an array. */
+export function choice<T>(arr: T[], rng: () => number = Math.random): T {
+  return arr[Math.floor(rng() * arr.length)];
 }
 
 export const math = {

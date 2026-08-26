@@ -34,7 +34,7 @@ export type RawAttacks = z.infer<typeof RawAttacksSchema>;
 export type RawAttack = z.infer<typeof RawAttackSchema>;
 
 /** A fully normalised attack the engine can read without JSON quirks. */
-export interface Attack {
+export interface AttackSpec {
   name: string;
   sprite?: string;
   strength: number;
@@ -57,7 +57,7 @@ export interface Attack {
 }
 
 /** Normalise one raw attack into an {@link Attack}. */
-export function normaliseAttack(raw: RawAttack, name: string): Attack {
+export function normaliseAttack(raw: RawAttack, name: string): AttackSpec {
   const sound = (v?: unknown): [string, number] | undefined => {
     if (!Array.isArray(v) || v.length < 2) return undefined;
     return [String(v[0]), toNumber(v[1])];
@@ -86,8 +86,8 @@ export function normaliseAttack(raw: RawAttack, name: string): Attack {
 }
 
 /** Parse a whole attacks.json document into a map of normalised attacks. */
-export function parseAttacks(raw: RawAttacks): Record<string, Attack> {
-  const out: Record<string, Attack> = {};
+export function parseAttacks(raw: RawAttacks): Record<string, AttackSpec> {
+  const out: Record<string, AttackSpec> = {};
   for (const [name, attack] of Object.entries(raw)) {
     out[name] = normaliseAttack(attack, name);
   }

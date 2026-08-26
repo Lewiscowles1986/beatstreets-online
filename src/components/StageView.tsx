@@ -1,5 +1,5 @@
 import { CanvasRender } from '../game/render/canvas-render';
-import { Stage } from '../game/dsl/stages';
+import { Stage } from '@beatstreets/engine';
 import { useCanvas } from './useCanvas';
 
 export interface StageViewProps {

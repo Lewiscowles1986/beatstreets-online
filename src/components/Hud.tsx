@@ -1,6 +1,6 @@
 import { CanvasRender } from '../game/render/canvas-render';
 import { useCanvas } from './useCanvas';
-import { clamp } from '../game/core/math';
+import { clamp } from '@beatstreets/engine';
 
 export interface HUDProps {
   health: number;

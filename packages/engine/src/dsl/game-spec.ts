@@ -1,6 +1,6 @@
 import { GameConfig, GameConfigSchema } from './config';
 import { Characters, CharactersSchema } from './characters';
-import { Attack, RawAttacksSchema, parseAttacks } from './attacks';
+import { AttackSpec, RawAttacksSchema, parseAttacks } from './attacks';
 import { Stages, StagesSchema, resolvePos, Stage } from './stages';
 import { Story, StorySchema } from './story';
 import { z } from 'zod';
@@ -13,7 +13,7 @@ import { z } from 'zod';
 export interface GameSpec {
   config: GameConfig;
   characters: Characters;
-  attacks: Record<string, Attack>;
+  attacks: Record<string, AttackSpec>;
   stages: Stages;
   story: Story;
 }
@@ -61,5 +61,5 @@ export function assertValid(spec: GameSpec): void {
 }
 
 // Re-export types for convenience.
-export type { GameConfig, Characters, Attack, Stages, Stage, Story };
+export type { GameConfig, Characters, Stages, Stage, Story };
 export { z };

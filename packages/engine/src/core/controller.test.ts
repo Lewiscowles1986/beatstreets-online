@@ -60,7 +60,7 @@ describe('GamepadController', () => {
         id: 'a',
         buttons: [{ pressed: true }],
         axes: [1, 0],
-      } as unknown as Gamepad,
+      },
       null,
     ]);
     expect(gps).toHaveLength(1);

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { loadGameSpec, loadResolvedStages } from './data';
 import { hasSprite, spriteCount } from './assets';
-import { Stage } from './dsl/stages';
+import { Stage } from '@beatstreets/engine';
 
 describe('Beat Streets game spec (DSL)', () => {
   const spec = loadGameSpec();

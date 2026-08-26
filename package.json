@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Beat Streets — a TypeScript web port (Vite + React + Canvas/WebGL) of the beatstreets game from the Code the Classics Python monorepo. Data-driven via a typed DSL, verified by Vitest + Playwright acceptance tests, component library in Storybook.",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "npm run typecheck && vite build",
@@ -17,9 +20,12 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "e2e:screenshot": "playwright test --project=screenshots",
-    "deploy": "echo 'Deploy handled by GitHub Actions (.github/workflows/pages.yml)'"
+    "deploy": "echo 'Deploy handled by GitHub Actions (.github/workflows/pages.yml)'",
+    "build:engine": "npm run build --workspace @beatstreets/engine",
+    "test:engine": "npm run test --workspace @beatstreets/engine"
   },
   "dependencies": {
+    "@beatstreets/engine": "0.1.0",
     "react": "^18.3.1",
     "react-compiler-runtime": "^1.0.0",
     "react-dom": "^18.3.1",

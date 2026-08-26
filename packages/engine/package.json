@@ -1,0 +1,27 @@
+{
+  "name": "@beatstreets/engine",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pure Beat Streets game logic: typed DSL (zod), core primitives (math/input/scene/controllers/Konami), and the game engine (fighters/enemies/game). Framework-agnostic — no React, no DOM, no Vite.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

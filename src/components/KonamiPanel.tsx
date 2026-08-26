@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ControllerRegistry, KeyboardController } from '../game/core/controller';
-import { KonamiDetector, KONAMI, DIR_TO_ANGLE } from '../game/core/konami';
+import { ControllerRegistry, KeyboardController } from '@beatstreets/engine';
+import { KonamiDetector, KONAMI, DIR_TO_ANGLE } from '@beatstreets/engine';
 
 export interface KonamiPanelProps {
   /** Keyboard button map for the 4 game buttons. */

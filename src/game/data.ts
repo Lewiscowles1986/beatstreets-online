@@ -1,4 +1,4 @@
-import { GameSpec, buildSpec, resolveStages } from './dsl/game-spec';
+import { GameSpec, buildSpec, resolveStages } from '@beatstreets/engine';
 import configJson from '../assets/data/config.json';
 import charactersJson from '../assets/data/characters.json';
 import attacksJson from '../assets/data/attacks.json';
