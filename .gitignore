@@ -8,3 +8,4 @@ playwright-report/
 coverage/
 .npm-cache/
 packages/engine/dist/
+.hermes-home/
