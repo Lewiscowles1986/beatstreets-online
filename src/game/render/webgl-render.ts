@@ -1,5 +1,6 @@
 import { getSpriteImage } from '../assets';
 import { CanvasRender } from './canvas-render';
+import { GlyphTextOptions } from '../glyph-text';
 
 /**
  * WebGL implementation of {@link Render} — a drop-in backend for CanvasRender.
@@ -144,12 +145,21 @@ export class WebGLRender {
     let dx = x;
     let dy = y;
     if (anchor[0] === 'center') dx -= w / 2;
+    if (anchor[1] === 'center') dy -= h / 2;
     if (anchor[1] === 'bottom') dy -= h;
     this.quads.push({ tex, x: dx, y: dy, w, h });
   }
 
   drawText(text: string, x: number, y: number, centered = false, color = '#fff'): void {
     this.c2d().drawText(text, x, y, centered, color);
+  }
+
+  drawGlyphText(text: string, x: number, y: number, opts?: GlyphTextOptions): void {
+    this.c2d().drawGlyphText(text, x, y, opts);
+  }
+
+  glyphTextWidth(text: string, opts?: GlyphTextOptions): number {
+    return this.c2d().glyphTextWidth(text, opts);
   }
 
   fillRect(x: number, y: number, w: number, h: number, color: string): void {

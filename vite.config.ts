@@ -21,6 +21,12 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: true,
     rollupOptions: {
+      input: {
+        main: 'index.html',
+        // Dedicated e2e entry for the title-screen fidelity check (GOAL G5). Kept as a
+        // separate page so the test route does not ship inside the main app bundle.
+        title: 'title.html',
+      },
       output: {
         // Split the heavy, rarely-changing dependencies into their own chunks so the
         // entry shell stays small and vendor code can be cached separately.

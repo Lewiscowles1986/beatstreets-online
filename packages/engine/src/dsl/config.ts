@@ -32,6 +32,11 @@ export const GameConfigSchema = z.object({
   DEBUG_SHOW_HEALTH_AND_STAMINA: z.boolean(),
   DEBUG_PROFILING: z.boolean(),
   SPECIAL_FONT_SYMBOLS: z.record(z.string(), z.string()),
+  // Title-screen tuning. Defaulted (not required) so unrelated config fixtures don't
+  // have to carry them; the shipped config.json overrides the defaults.
+  TITLE_PROMPT: z.string().default('PRESS % OR Z'),
+  TITLE_PROMPT_Y_OFFSET: z.number().default(50),
+  TITLE_LOGO_SWAP_FRAMES: z.number().default(20),
   MIN_WALK_Y: z.number(),
   ENEMY_APPROACH_PLAYER_DISTANCE: z.number(),
   ENEMY_APPROACH_PLAYER_DISTANCE_SCOOTERBOY: z.number(),

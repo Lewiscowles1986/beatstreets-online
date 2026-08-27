@@ -1,4 +1,5 @@
 import { getSpriteImage } from '../assets';
+import { GlyphTextOptions, GLYPH_SPACE_WIDTH, glyphSpriteName, measureGlyphText } from '../glyph-text';
 
 /**
  * Minimal render abstraction over a 2D canvas.
@@ -16,6 +17,10 @@ export interface Render {
   blitSprite(name: string, x: number, y: number, anchor?: [string, string]): void;
   /** Draw text. */
   drawText(text: string, x: number, y: number, centered?: boolean, color?: string): void;
+  /** Draw text using the game's per-glyph font sprites (Python `draw_text`). */
+  drawGlyphText(text: string, x: number, y: number, opts?: GlyphTextOptions): void;
+  /** Width of a glyph-rendered string (Python `text_width`). */
+  glyphTextWidth(text: string, opts?: GlyphTextOptions): number;
   /** Fill a rectangle. */
   fillRect(x: number, y: number, w: number, h: number, color: string): void;
   /** Stroke a rectangle. */
@@ -47,6 +52,7 @@ export class CanvasRender implements Render {
     let dx = x;
     let dy = y;
     if (anchor[0] === 'center') dx -= w / 2;
+    if (anchor[1] === 'center') dy -= h / 2;
     if (anchor[1] === 'bottom') dy -= h;
     this.ctx.drawImage(img, dx, dy);
   }
@@ -61,6 +67,43 @@ export class CanvasRender implements Render {
     } else {
       this.ctx.fillText(text, x, y);
     }
+  }
+
+  /** Width of a glyph-rendered string, resolving sprite widths from the asset cache. */
+  glyphTextWidth(text: string, opts: GlyphTextOptions = {}): number {
+    const { specialSymbols = {}, spaceWidth = GLYPH_SPACE_WIDTH } = opts;
+    return measureGlyphText(text, (sprite) => this.spriteWidth(sprite), specialSymbols, spaceWidth);
+  }
+
+  /** Draw text using the game's per-glyph font sprites (Python `draw_text`). */
+  drawGlyphText(text: string, x: number, y: number, opts: GlyphTextOptions = {}): void {
+    const { centered = false, specialSymbols = {}, spaceWidth = GLYPH_SPACE_WIDTH } = opts;
+    let cx = x;
+    if (centered) cx -= Math.floor(this.glyphTextWidth(text, opts) / 2);
+    for (const char of text) {
+      const sprite = glyphSpriteName(char, specialSymbols);
+      if (sprite === null) {
+        cx += spaceWidth;
+        continue;
+      }
+      const img = this.load(sprite);
+      if (img) {
+        const w = img.naturalWidth || img.width;
+        this.ctx.drawImage(img, cx, y);
+        cx += w;
+      } else {
+        if (import.meta.env.DEV) {
+          console.warn(`[glyph] missing sprite "${sprite}" for char "${char}" — advancing by space width`);
+        }
+        cx += spaceWidth;
+      }
+    }
+  }
+
+  /** Pixel width of a loaded sprite, or the space advance if it is not loaded. */
+  private spriteWidth(name: string): number {
+    const img = this.load(name);
+    return img ? img.naturalWidth || img.width : GLYPH_SPACE_WIDTH;
   }
 
   fillRect(x: number, y: number, w: number, h: number, color: string): void {

@@ -78,6 +78,9 @@ class AssetLoader {
         };
         img.onerror = () => {
           // Missing sprite: count it as loaded so we don't hang; it just won't render.
+          if (import.meta.env.DEV) {
+            console.warn(`[assets] failed to load sprite "${name}" (${url})`);
+          }
           loaded += 1;
           onProgress?.(loaded, total);
           if (loaded >= total) resolve();
