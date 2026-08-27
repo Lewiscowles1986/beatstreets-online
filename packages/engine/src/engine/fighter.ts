@@ -53,6 +53,13 @@ export abstract class Fighter {
   vpos: Vec2;
   heightAboveGround = 0;
 
+  /**
+   * Vertical anchor offset (px from the sprite's top) used when drawing, mirroring
+   * the Python `anchor=("center", anchor_y)` convention. The render layer subtracts
+   * this from the sprite's top so the anchor point lands on `vpos`.
+   */
+  anchorY: number;
+
   speed: Vec2;
   sprite: string;
   animUpdateRate: number;
@@ -100,6 +107,7 @@ export abstract class Fighter {
     this.vpos = pos;
     this.speed = speed;
     this.sprite = sprite;
+    this.anchorY = opts.anchorY ?? 256;
     this.animUpdateRate = opts.animUpdateRate ?? 8;
     this.stamina = opts.stamina ?? 500;
     this.maxStamina = this.stamina;

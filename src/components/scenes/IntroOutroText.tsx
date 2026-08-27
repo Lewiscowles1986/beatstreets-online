@@ -19,6 +19,10 @@ export interface IntroOutroTextProps {
  * The intro/outro story overlay: a typewriter-revealed block of text on a black
  * backdrop, which fades away over ~255 frames after being dismissed (matching the
  * Python game). Presentational — the host owns the typing/fade timers.
+ *
+ * The story text is drawn with the game's per-glyph font sprites (Python `draw_text`)
+ * at (50, 50), with `\n` advancing down 35px and resetting to the line start — the
+ * glyphs are the game's red font, matching the Python intro frame.
  */
 export function IntroOutroText({
   width = 800,
@@ -39,7 +43,7 @@ export function IntroOutroText({
         const alpha = textActive ? 255 : clamp(255 - timer, 0, 255);
         render.fillRect(0, 0, width, height, `rgba(0,0,0,${alpha / 255})`);
         if (textActive) {
-          render.drawText(displayedText ?? text, 50, 50, false, '#fff');
+          render.drawGlyphText(displayedText ?? text, 50, 50);
         }
       }
     },

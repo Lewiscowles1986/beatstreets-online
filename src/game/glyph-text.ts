@@ -11,6 +11,9 @@
 /** Fixed advance (px) for a space glyph, matching the Python `get_char_image_and_width`. */
 export const GLYPH_SPACE_WIDTH = 22;
 
+/** Vertical advance (px) per newline, matching the Python `draw_text` (`y += 35`). */
+export const GLYPH_LINE_HEIGHT = 35;
+
 /** Options controlling glyph text layout. */
 export interface GlyphTextOptions {
   /** Centre the string horizontally on `x` (Python `centre=True`). */

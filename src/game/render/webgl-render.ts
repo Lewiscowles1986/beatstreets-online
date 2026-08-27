@@ -1,5 +1,5 @@
 import { getSpriteImage } from '../assets';
-import { CanvasRender } from './canvas-render';
+import { CanvasRender, Anchor } from './canvas-render';
 import { GlyphTextOptions } from '../glyph-text';
 
 /**
@@ -43,6 +43,14 @@ interface SpriteQuad {
   y: number;
   w: number;
   h: number;
+  /** Optional source region (px) within the texture; defaults to the full image. */
+  srcW?: number;
+  srcH?: number;
+  /** Full texture dimensions (needed to map a source region to UVs). */
+  fullW?: number;
+  fullH?: number;
+  /** Debug: sprite name. */
+  name?: string;
 }
 
 export class WebGLRender {
@@ -64,7 +72,7 @@ export class WebGLRender {
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.width = width;
     this.height = height;
-    const gl = canvas.getContext('webgl', { premultipliedAlpha: true });
+    const gl = canvas.getContext('webgl', { premultipliedAlpha: true, preserveDrawingBuffer: true });
     if (!gl) throw new Error('WebGL not supported');
     this.gl = gl;
 
@@ -124,8 +132,11 @@ export class WebGLRender {
     const tex = gl.createTexture();
     if (!tex) return null;
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    // Do NOT flip Y on upload: the quad already maps v=0 to the sprite's top, so a
-    // flip here would invert the image (upside-down rendering).
+    // No Y flip on sprite upload: texImage2D uploads the image's top row first, so it
+    // lands at v=0, and the quads map v=0 to the screen top — sprites render upright.
+    // (The 2D overlay path below DOES flip on upload because its quad samples v=1 at
+    // the screen top; the two paths intentionally differ. See flushQuads/flushOverlay.)
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -135,7 +146,7 @@ export class WebGLRender {
     return tex;
   }
 
-  blitSprite(name: string, x: number, y: number, anchor: [string, string] = ['center', 'bottom']): void {
+  blitSprite(name: string, x: number, y: number, anchor: Anchor = ['center', 'bottom']): void {
     const tex = this.texture(name);
     if (!tex) return; // sprite not loaded yet; skipped this frame
     const img = getSpriteImage(name);
@@ -145,9 +156,21 @@ export class WebGLRender {
     let dx = x;
     let dy = y;
     if (anchor[0] === 'center') dx -= w / 2;
-    if (anchor[1] === 'center') dy -= h / 2;
-    if (anchor[1] === 'bottom') dy -= h;
-    this.quads.push({ tex, x: dx, y: dy, w, h });
+    if (typeof anchor[1] === 'number') dy -= anchor[1];
+    else if (anchor[1] === 'center') dy -= h / 2;
+    else if (anchor[1] === 'bottom') dy -= h;
+    this.quads.push({ tex, x: dx, y: dy, w, h, name });
+  }
+
+  /** Blit only the top-left `srcW`×`srcH` region of a sprite (clipped bar fill). */
+  blitSpriteRegion(name: string, x: number, y: number, srcW: number, srcH: number): void {
+    const tex = this.texture(name);
+    if (!tex) return;
+    const img = getSpriteImage(name);
+    const w = img?.naturalWidth ?? 0;
+    const h = img?.naturalHeight ?? 0;
+    if (!w || !h) return;
+    this.quads.push({ tex, x, y, w: srcW, h: srcH, srcW, srcH, fullW: w, fullH: h });
   }
 
   drawText(text: string, x: number, y: number, centered = false, color = '#fff'): void {
@@ -176,9 +199,12 @@ export class WebGLRender {
 
   clear(color = '#000'): void {
     this.quads.length = 0;
+    // The overlay is composited on top of the WebGL sprite layer, so it must be
+    // transparent where nothing is drawn. Filling it with the clear colour would make
+    // it an opaque full-screen quad that hides the sprites behind it. The main canvas
+    // is cleared to black in present() via gl.clearColor.
+    void color;
     this.overlay2d.clearRect(0, 0, this.width, this.height);
-    this.overlay2d.fillStyle = color;
-    this.overlay2d.fillRect(0, 0, this.width, this.height);
   }
 
   /** Present the frame: render the WebGL sprite layer, then composite the 2D overlay. */
@@ -208,10 +234,14 @@ export class WebGLRender {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    // Full-screen quad (NDC space) with uv 0..1.
+    // Full-screen quad in pixel space (the vertex shader maps pixels to NDC). The
+    // overlay is uploaded with UNPACK_FLIP_Y_WEBGL, so the image's top row sits at
+    // v=1 — the screen top must therefore sample v=1, not v=0 (a v=0 top would
+    // composite the overlay vertically mirrored: text drawn at y=0 appears at the
+    // bottom of the screen).
     const verts = new Float32Array([
-      -1, -1, 0, 0, 1, -1, 1, 0, -1, 1, 0, 1,
-      1, -1, 1, 0, 1, 1, 1, 1, -1, 1, 0, 1,
+      0, 0, 0, 1, this.width, 0, 1, 1, 0, this.height, 0, 0,
+      this.width, 0, 1, 1, this.width, this.height, 1, 0, 0, this.height, 0, 0,
     ]);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
     gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
@@ -236,14 +266,17 @@ export class WebGLRender {
     let i = 0;
     for (const q of this.quads) {
       const { x, y, w, h } = q;
-      // Texture coordinates assume a full-image (0..1) quad.
+      // Texture coordinates: full-image (0..1) by default, or limited to the top-left
+      // source region when a clipped blit (blitSpriteRegion) was requested.
+      const u1 = q.srcW !== undefined ? q.srcW / (q.fullW ?? w) : 1;
+      const v1 = q.srcH !== undefined ? q.srcH / (q.fullH ?? h) : 1;
       const verts = [
         [x, y, 0, 0],
-        [x + w, y, 1, 0],
-        [x, y + h, 0, 1],
-        [x + w, y, 1, 0],
-        [x + w, y + h, 1, 1],
-        [x, y + h, 0, 1],
+        [x + w, y, u1, 0],
+        [x, y + h, 0, v1],
+        [x + w, y, u1, 0],
+        [x + w, y + h, u1, v1],
+        [x, y + h, 0, v1],
       ];
       for (const [px, py, u, v] of verts) {
         floats[i++] = px;

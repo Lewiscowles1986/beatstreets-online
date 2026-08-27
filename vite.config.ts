@@ -26,6 +26,8 @@ export default defineConfig({
         // Dedicated e2e entry for the title-screen fidelity check (GOAL G5). Kept as a
         // separate page so the test route does not ship inside the main app bundle.
         title: 'title.html',
+        // Dedicated e2e entry for the intro-text fidelity check (GOAL G5).
+        intro: 'intro.html',
       },
       output: {
         // Split the heavy, rarely-changing dependencies into their own chunks so the

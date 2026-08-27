@@ -1,5 +1,5 @@
 import { getSpriteImage } from '../assets';
-import { GlyphTextOptions, GLYPH_SPACE_WIDTH, glyphSpriteName, measureGlyphText } from '../glyph-text';
+import { GlyphTextOptions, GLYPH_LINE_HEIGHT, GLYPH_SPACE_WIDTH, glyphSpriteName, measureGlyphText } from '../glyph-text';
 
 /**
  * Minimal render abstraction over a 2D canvas.
@@ -12,9 +12,22 @@ import { GlyphTextOptions, GLYPH_SPACE_WIDTH, glyphSpriteName, measureGlyphText 
  * Sprites come from the shared {@link getSpriteImage} cache, so callers must preload
  * assets (via {@link preloadSprites}) before the first frame draws.
  */
+/**
+ * A sprite anchor. The horizontal component is a string (`'center'`/`'left'`/`'right'`);
+ * the vertical component is either a string (`'top'`/`'center'`/`'bottom'`) or a
+ * numeric pixel offset from the sprite's top (mirroring Python's `anchor=("center", 256)`).
+ */
+export type Anchor = [string, string | number];
+
 export interface Render {
   /** Draw a sprite at world (or screen) coords with an optional anchor. */
-  blitSprite(name: string, x: number, y: number, anchor?: [string, string]): void;
+  blitSprite(name: string, x: number, y: number, anchor?: Anchor): void;
+  /**
+   * Draw only the top-left `srcW`×`srcH` region of a sprite at `(x, y)` (mirrors
+   * pygame's `surface.blit(img, (x, y), Rect(0, 0, srcW, srcH))` — used for the
+   * clipped health/stamina bars).
+   */
+  blitSpriteRegion(name: string, x: number, y: number, srcW: number, srcH: number): void;
   /** Draw text. */
   drawText(text: string, x: number, y: number, centered?: boolean, color?: string): void;
   /** Draw text using the game's per-glyph font sprites (Python `draw_text`). */
@@ -43,7 +56,7 @@ export class CanvasRender implements Render {
     return getSpriteImage(name) ?? undefined;
   }
 
-  blitSprite(name: string, x: number, y: number, anchor: [string, string] = ['center', 'bottom']): void {
+  blitSprite(name: string, x: number, y: number, anchor: Anchor = ['center', 'bottom']): void {
     const img = this.load(name);
     if (!img) return;
     const w = img.naturalWidth || img.width || 0;
@@ -52,9 +65,17 @@ export class CanvasRender implements Render {
     let dx = x;
     let dy = y;
     if (anchor[0] === 'center') dx -= w / 2;
-    if (anchor[1] === 'center') dy -= h / 2;
-    if (anchor[1] === 'bottom') dy -= h;
+    if (typeof anchor[1] === 'number') dy -= anchor[1];
+    else if (anchor[1] === 'center') dy -= h / 2;
+    else if (anchor[1] === 'bottom') dy -= h;
     this.ctx.drawImage(img, dx, dy);
+  }
+
+  /** Blit only the top-left `srcW`×`srcH` region of a sprite (clipped bar fill). */
+  blitSpriteRegion(name: string, x: number, y: number, srcW: number, srcH: number): void {
+    const img = this.load(name);
+    if (!img) return;
+    this.ctx.drawImage(img, 0, 0, srcW, srcH, x, y, srcW, srcH);
   }
 
   drawText(text: string, x: number, y: number, centered = false, color = '#fff'): void {
@@ -80,7 +101,14 @@ export class CanvasRender implements Render {
     const { centered = false, specialSymbols = {}, spaceWidth = GLYPH_SPACE_WIDTH } = opts;
     let cx = x;
     if (centered) cx -= Math.floor(this.glyphTextWidth(text, opts) / 2);
+    const startX = cx;
     for (const char of text) {
+      if (char === '\n') {
+        // New line (Python `draw_text`): advance down and reset to the line start.
+        y += GLYPH_LINE_HEIGHT;
+        cx = startX;
+        continue;
+      }
       const sprite = glyphSpriteName(char, specialSymbols);
       if (sprite === null) {
         cx += spaceWidth;

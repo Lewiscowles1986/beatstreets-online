@@ -35,9 +35,12 @@ export function TitleScreen({
     (ctx) => {
       const cfg = config();
       const render = new CanvasRender(ctx, width, height);
+      // The Python title state blits the logo onto a black surface, so the logo's
+      // semi-transparent glow composites onto black. Clear the canvas to black first so
+      // the compositing happens inside the canvas (matching pygame's blit) rather than
+      // relying on the page backdrop behind a transparent canvas.
+      render.clear('#000');
       const logo = titleLogoName(frame, cfg.TITLE_LOGO_SWAP_FRAMES);
-      // The logo is full-frame (800x480), so it covers the canvas — no background fill,
-      // matching the Python title state which blits the image over the whole surface.
       render.blitSprite(logo, width / 2, height / 2, ['center', 'center']);
       render.drawGlyphText(prompt ?? cfg.TITLE_PROMPT, width / 2, height - cfg.TITLE_PROMPT_Y_OFFSET, {
         centered: true,

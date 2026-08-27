@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Game, Scene, SceneManager, KonamiDetector, Barrel, Stick, Chain, HealthPowerup, ExtraLifePowerup, WebSocketController } from '@beatstreets/engine';
 import { loadGameSpec } from '../game/data';
-import { CanvasRender } from '../game/render/canvas-render';
+import { CanvasRender, Anchor } from '../game/render/canvas-render';
 import { WebGLRender } from '../game/render/webgl-render';
 import { useSpriteAssets } from './useSpriteAssets';
 import { AudioController } from '../game/audio';
@@ -410,30 +410,60 @@ class Host {
 
   private drawWorld(render: Renderer): void {
     this.drawBackground(render);
+    const scroll = this.game.scrollOffset.x;
+    // Fighters are anchored at ("center", anchorY) — a pixel offset from the sprite's
+    // top — and their screen Y is raised by heightAboveGround (Python ScrollHeightActor).
     const objs = [this.game.player, ...this.game.enemies].sort((a, b) => a.vpos.y - b.vpos.y);
     for (const o of objs) {
-      render.blitSprite(o.determineSprite(), o.vpos.x - this.game.scrollOffset.x, o.vpos.y);
-      if (this.debug) render.drawCircle(o.vpos.x - this.game.scrollOffset.x, o.vpos.y, 5, '#ff0');
+      render.blitSprite(o.determineSprite(), o.vpos.x - scroll, o.vpos.y - o.heightAboveGround, ['center', o.anchorY]);
+      if (this.debug) render.drawCircle(o.vpos.x - scroll, o.vpos.y, 5, '#ff0');
     }
     // Weapons (barrels / stick / chain).
     for (const w of this.game.weapons) {
       const sprite = weaponSprite(w);
-      if (sprite) render.blitSprite(sprite, w.vpos.x - this.game.scrollOffset.x, w.vpos.y);
+      if (sprite) render.blitSprite(sprite, w.vpos.x - scroll, w.vpos.y, weaponAnchor(w));
     }
     // Powerups.
     for (const p of this.game.powerups) {
       const sprite = powerupSprite(p);
-      if (sprite) render.blitSprite(sprite, p.vpos.x - this.game.scrollOffset.x, p.vpos.y);
+      if (sprite) render.blitSprite(sprite, p.vpos.x - scroll, p.vpos.y);
     }
     // Lone scooters (riders knocked off).
     for (const s of this.game.scooters) {
-      render.blitSprite(s.sprite(), s.vpos.x - this.game.scrollOffset.x, s.vpos.y);
+      render.blitSprite(s.sprite(), s.vpos.x - scroll, s.vpos.y);
     }
     // Scrolling arrow: shows when the stage can still scroll forward.
     if (this.game.scrollOffset.x < this.game.maxScrollOffsetX && (this.game.timer / 30 | 0) % 2 === 0) {
       render.blitSprite('arrow', this.width - 450, 120, ['left', 'top']);
     }
-    render.drawText(`Stage ${this.game.stageIndex + 1} · HP ${this.game.player.health} · score ${this.game.score}`, 8, this.height - 20, false, '#9ad0ff');
+    this.drawHud(render);
+  }
+
+  /**
+   * The in-game status bar (Python `draw_ui`): clipped health/stamina bars, the status
+   * frame, life icons and the centered score — drawn in the same order as the Python
+   * game so the frame and score sit on top of the bars.
+   */
+  private drawHud(render: Renderer): void {
+    const cfg = this.game.config;
+    const player = this.game.player;
+    const barW = cfg.HEALTH_STAMINA_BAR_WIDTH;
+    const barH = cfg.HEALTH_STAMINA_BAR_HEIGHT;
+    const healthW = Math.floor((player.health / player.startHealth) * barW);
+    const staminaW = Math.floor((player.stamina / player.maxStamina) * barW);
+    render.blitSpriteRegion('health', 48, 11, healthW, barH);
+    render.blitSpriteRegion('stamina', 517, 11, staminaW, barH);
+    render.blitSprite('status', 0, 0, ['left', 'top']);
+    for (let i = 0; i < player.lives; i++) {
+      // Python draw_ui: the newest extra life animates in while extra_life_timer
+      // counts down from 30; all other lives use the full status_life9 icon.
+      const spriteIdx =
+        player.extraLifeTimer <= 0 || i < player.lives - 1
+          ? 9
+          : Math.min(9, Math.floor((30 - player.extraLifeTimer) / 3));
+      render.blitSprite(`status_life${spriteIdx}`, i * 46 - 55, -35, ['left', 'top']);
+    }
+    render.drawGlyphText(String(this.game.score).padStart(4, '0'), cfg.WIDTH / 2, 0, { centered: true });
   }
 
   /** Draw the scrolling road + repeating background tiles (draw_background port). */
@@ -655,6 +685,13 @@ function weaponSprite(w: unknown): string | null {
   if (w instanceof Barrel) return w.sprite();
   if (w instanceof Stick || w instanceof Chain) return w.spriteName;
   return null;
+}
+
+/** The draw anchor for a weapon, matching the Python `Weapon` anchors. */
+function weaponAnchor(w: unknown): Anchor {
+  // Barrel: ("center", 190); stick/chain: ("center", "center").
+  if (w instanceof Barrel) return ['center', 190];
+  return ['center', 'center'];
 }
 
 /** A representative sprite for a powerup. */

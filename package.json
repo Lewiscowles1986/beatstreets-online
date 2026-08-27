@@ -23,7 +23,7 @@
     "deploy": "echo 'Deploy handled by GitHub Actions (.github/workflows/pages.yml)'",
     "build:engine": "npm run build --workspace @beatstreets/engine",
     "test:engine": "npm run test --workspace @beatstreets/engine",
-    "precommit": "npm run typecheck && npm run lint && npm test && npm run build",
+    "precommit": "npm run typecheck && npm run lint && npm test && npm run build && playwright test --project=chromium --workers=1 e2e/fidelity.spec.ts e2e/game-canvas.spec.ts",
     "prepare": "husky"
   },
   "dependencies": {
