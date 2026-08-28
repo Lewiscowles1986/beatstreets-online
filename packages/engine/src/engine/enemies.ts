@@ -67,6 +67,28 @@ export class EnemyScooterboy extends Enemy {
     if (this.state !== EnemyState.RIDING_SCOOTER) super.makeDecision();
   }
 
+  /** Python override_walking: the riding state is managed entirely by updateRiding —
+   *  the base walk/attack branch must not run (it would reset the ride-anim frame). */
+  protected override overrideWalking(): boolean {
+    return this.state === EnemyState.RIDING_SCOOTER;
+  }
+
+  /** Python: the scooterboy's knockdown animation has one extra frame. */
+  protected override knockdownLastFrame(): number {
+    return 3;
+  }
+
+  /** Python: riding uses scooterboy_ride_{facing}_{frame}_{variant}; frame is 0
+   *  unless currently speeding up (then min(frame // 5, 2)). */
+  override determineSprite(): string {
+    if (this.state === EnemyState.RIDING_SCOOTER) {
+      const facingId = this.facingX === 1 ? 1 : 0;
+      const frame = this.scooterSpeed < this.scooterTargetSpeed ? Math.min(Math.floor(this.frame / 5), 2) : 0;
+      return `scooterboy_ride_${facingId}_${frame}_${this.colourVariant ?? 0}`;
+    }
+    return super.determineSprite();
+  }
+
   override update(): void {
     if (this.state === EnemyState.RIDING_SCOOTER) {
       this.updateRiding();
@@ -92,6 +114,15 @@ export class EnemyScooterboy extends Enemy {
     if ((this.facingX > 0 && this.vpos.x - this.game.scrollX() > 800 + 200) || (this.facingX < 0 && this.vpos.x - this.game.scrollX() < -200)) {
       this.facingX = -this.facingX;
       this.target.y = player.vpos.y;
+      // Python: if the player is standing, jump to the player's Y; otherwise pick a
+      // random Y at least 40px away (the randint draws are RNG-stream relevant).
+      if (player.fallingState === FallingState.STANDING) {
+        this.vpos.y = this.target.y;
+      } else {
+        while (Math.abs(this.vpos.y - this.target.y) < 40) {
+          this.vpos.y = this.game.rng.randint(this.game.config.MIN_WALK_Y, this.game.config.HEIGHT - 1);
+        }
+      }
       this.scooterTargetSpeed = this.slowSpeed;
       this.scooterSpeed = this.scooterTargetSpeed;
     }

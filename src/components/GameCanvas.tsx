@@ -549,6 +549,12 @@ class Host {
   }
 
   tick(): void {
+    // Recompute per-frame input edges BEFORE anything reads them — python parity:
+    // update_controls() runs at the top of every frame, so the player's update, the
+    // Konami detector and the menus all see the same edges (the old destructive
+    // justPressed set let the first reader starve the rest — the Konami 'a'/'b'
+    // tokens never reached the detector during play).
+    this.controls.update();
     this.sceneManager.update();
     this.present();
   }
@@ -567,6 +573,10 @@ class Host {
    */
   tickBatch(n: number, freezeAt: number): boolean {
     for (let i = 0; i < n; i++) {
+      // Per-update edge promotion — python parity: update_controls() runs at the top
+      // of EVERY frame, batched or not; without it the freeze replays' live keyboard
+      // presses (the intro-skip bootstrap) would never be seen.
+      this.controls.update();
       this.sceneManager.update();
       this.batchedUpdates += 1;
       const ov = this.getOverlayState();
@@ -723,6 +733,10 @@ interface DisposableControls {
   /** Current edge-detected [up, down, left, right] states. */
   directions(): [boolean, boolean, boolean, boolean];
   escPressed(): boolean;
+  /** Recompute per-frame edges BEFORE the game update — python parity:
+   *  update_controls() runs at the top of every frame, so every reader in the
+   *  frame (the player, the Konami detector, the menus) sees the same edge. */
+  update(): void;
   dispose(): void;
 }
 
@@ -740,6 +754,9 @@ function makeControls(ws?: WebSocketController): DisposableControls {
     rawPressed: (k: string) => kb.rawPressed(k),
     directions: () => kb.directions(),
     escPressed: () => kb.escPressed(),
+    update: () => {
+      kb.update();
+    },
     dispose: () => {
       kb.dispose();
       pad.dispose();
@@ -821,6 +838,10 @@ class ScheduledControls implements DisposableControls {
     return this.inner.escPressed();
   }
 
+  update(): void {
+    this.inner.update();
+  }
+
   dispose(): void {
     this.inner.dispose();
   }
@@ -883,8 +904,22 @@ type RawGamepadLike = { id: string; buttons: Array<{ pressed: boolean }>; axes: 
 function makeKeyboardControls(): DisposableControls {
   const down = new Set<string>();
   const prev = new Set<string>();
-  const justPressed = new Set<number>();
-  const map: Record<number, string[]> = { 0: [' '], 1: ['x'], 2: ['c'], 3: ['a'] };
+  // Button edges, python-parity semantics (Controls.update / is_button_pressed):
+  // a keydown CAPTURES the edge immediately (a fast tap between frames is never
+  // lost), and the per-frame update() promotes it to a NON-DESTRUCTIVE frame edge
+  // so every reader in the frame (the player's update, the Konami detector, the
+  // menus) sees the same press. The previous code either lost presses entirely
+  // (pure per-frame recompute) or starved non-first readers (destructive set).
+  const pendingEdges = [false, false, false, false];
+  const edges = [false, false, false, false];
+  // python KeyboardControls.button_down: punch=space/z/lctrl, kick=x/lalt,
+  // elbow=c/lshift, flying kick=a.
+  const map: Record<number, string[]> = {
+    0: [' ', 'z', 'Control', 'ControlLeft'],
+    1: ['x', 'Alt', 'AltLeft'],
+    2: ['c', 'Shift', 'ShiftLeft'],
+    3: ['a'],
+  };
   const keyFor = (b: number) => [...down].some((k) => map[b]?.includes(k));
   const buttonFor = (k: string): number | null => {
     for (const [b, keys] of Object.entries(map)) {
@@ -896,7 +931,7 @@ function makeKeyboardControls(): DisposableControls {
     down.add(e.code);
     down.add(e.key);
     const b = buttonFor(e.key);
-    if (b !== null) justPressed.add(b);
+    if (b !== null) pendingEdges[b] = true;
   };
   const onUp = (e: KeyboardEvent) => {
     down.delete(e.code);
@@ -910,14 +945,14 @@ function makeKeyboardControls(): DisposableControls {
     getX: () => (down.has('ArrowRight') || down.has('d') ? 1 : down.has('ArrowLeft') || down.has('a') ? -1 : 0),
     getY: () => (down.has('ArrowDown') || down.has('s') ? 1 : down.has('ArrowUp') || down.has('w') ? -1 : 0),
     held: keyFor,
-    // Rising-edge captured at keydown time so a quick tap between frames is never lost.
-    pressed: (b: number) => {
-      if (justPressed.has(b)) {
-        justPressed.delete(b);
-        return true;
+    // Per-frame edges, non-destructive (python: is_button_pressed[button]).
+    update: () => {
+      for (let b = 0; b <= 3; b++) {
+        edges[b] = pendingEdges[b];
+        pendingEdges[b] = false;
       }
-      return false;
     },
+    pressed: (b: number) => edges[b],
     rawPressed: (key: string) => {
       const was = prev.has(key);
       const is = down.has(key);

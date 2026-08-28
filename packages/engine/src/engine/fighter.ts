@@ -403,8 +403,25 @@ export abstract class Fighter {
     let frame: number;
 
     if (this.fallingState === FallingState.FALLING) {
-      animType = this.useDieAnimation ? 'die' : 'knockdown';
-      frame = this.useDieAnimation ? Math.min(Math.floor(this.frame / 20), 2) : Math.min(Math.floor(this.frame / 10), 2);
+      // Python: out of health while falling, flash on and off for a short while
+      // (frame > 60 and (frame // 10) % 2 == 0 -> not drawn).
+      if (this.frame > 60 && this.health <= 0 && Math.floor(this.frame / 10) % 2 === 0) {
+        return 'blank';
+      }
+      if (this.justKnockedOffScooter) {
+        // Python: "we've only just fallen off a scooter, play knocked_off frame 0
+        // before continuing from knockdown frame 1". The transition back (frame > 10,
+        // which also spawns the independent Scooter) happens in the game update loop.
+        animType = 'knocked_off';
+        frame = 0;
+      } else if (this.useDieAnimation) {
+        animType = 'die';
+        frame = Math.min(Math.floor(this.frame / 20), 2);
+      } else {
+        animType = 'knockdown';
+        // Python: the scooterboy's knockdown has one extra frame (last_frame 3 vs 2).
+        frame = Math.min(Math.floor(this.frame / 10), this.knockdownLastFrame());
+      }
     } else if (this.fallingState === FallingState.GETTING_UP) {
       animType = 'getup';
       frame = Math.min(Math.floor(this.frame / 10), 1);
@@ -460,6 +477,11 @@ export abstract class Fighter {
 
   protected overrideWalking(): boolean {
     return false;
+  }
+
+  /** Python's knockdown last_frame: 2 for everyone, 3 for the scooterboy. */
+  protected knockdownLastFrame(): number {
+    return 2;
   }
 
   protected abstract determineAttack(): Attack | null;
