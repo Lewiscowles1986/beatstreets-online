@@ -75,6 +75,9 @@ export class Game implements GameContext {
    * Python game's `setup_stages()` (all stages are pre-built at construction).
    */
   private preDrawnWorld: { colours: number[]; durabilities: number[] }[] = [];
+  /** Persistent per-stage object pools: Python's STAGES hold live instances created
+   *  once at setup_stages and re-used verbatim by every create_stage_objects call. */
+  private stagePools = new Map<number, { enemies: Enemy[]; weapons: WeaponLike[]; powerups: Powerup[] }>();
 
   constructor(
     spec: GameSpec,
@@ -200,32 +203,50 @@ export class Game implements GameContext {
   }
 
   private createStageObjects(stage: Stage): void {
-    const pre = this.preDrawnWorld[this.stageIndex] ?? { colours: [], durabilities: [] };
+    // Python's create_stage_objects re-uses the SAME enemy instances every call
+    // (they were constructed once at setup_stages, colour variants drawn at
+    // construction) and EXTENDS the game's weapons/powerups with the stage's:
+    //   self.enemies = stage.enemies.copy(); spawned() each
+    //   self.weapons.extend(stage.weapons); self.powerups.extend(stage.powerups)
+    // A stage can therefore be created MORE THAN ONCE (the --stage test hook jumps
+    // while the player already sits past the scroll boundary, re-firing the trigger)
+    // without re-drawing colour variants or resetting enemy state — so the web must
+    // build each stage's objects once into a persistent pool and re-attach them.
+    const pool = this.stagePool(this.stageIndex, stage);
+    this.enemies = pool.enemies.slice();
+    for (const enemy of this.enemies) enemy.spawned();
+    this.weapons = this.weapons.concat(pool.weapons);
+    this.powerups = this.powerups.concat(pool.powerups);
+  }
+
+  /** Build (once) and return the persistent object pool for a stage. */
+  private stagePool(index: number, stage: Stage): { enemies: Enemy[]; weapons: WeaponLike[]; powerups: Powerup[] } {
+    const existing = this.stagePools.get(index);
+    if (existing) return existing;
+    const pre = this.preDrawnWorld[index] ?? { colours: [], durabilities: [] };
     const enemies: Enemy[] = [];
+    let colourIdx = 0;
+    let durIdx = 0;
     for (const e of stage.enemies) {
-      // Reuse the colour variant pre-drawn at construction (matching Python, which
-      // pre-builds every stage at Game init). Portal spawns draw live instead.
-      const colour = isColourVariantEnemy(e.type) ? pre.colours.shift() : undefined;
+      // Index into the pre-drawn values (Python's instances carry their colour
+      // forever; shift() would drain the store and draw live variants on re-create).
+      const colour = isColourVariantEnemy(e.type) ? pre.colours[colourIdx++] : undefined;
       const enemy = this.buildEnemy(e, colour);
       if (enemy) enemies.push(enemy);
     }
-    this.enemies = enemies;
-    for (const enemy of this.enemies) enemy.spawned();
-    // Reset weapons/powerups to this stage's spawns.
-    this.weapons = [];
-    this.powerups = [];
-    this.addStageWorldObjects(stage, pre.durabilities);
-  }
-
-  private addStageWorldObjects(stage: Stage, durabilities: number[] = []): void {
+    const weapons: WeaponLike[] = [];
     for (const w of stage.weapons) {
-      const weapon = this.buildWeapon(w, w.type === 'Stick' || w.type === 'Chain' ? durabilities.shift() : undefined);
-      if (weapon) this.weapons.push(weapon);
+      const weapon = this.buildWeapon(w, w.type === 'Stick' || w.type === 'Chain' ? pre.durabilities[durIdx++] : undefined);
+      if (weapon) weapons.push(weapon);
     }
+    const powerups: Powerup[] = [];
     for (const p of stage.powerups) {
       const powerup = this.buildPowerup(p);
-      if (powerup) this.powerups.push(powerup);
+      if (powerup) powerups.push(powerup);
     }
+    const pool = { enemies, weapons, powerups };
+    this.stagePools.set(index, pool);
+    return pool;
   }
 
   /** Build a weapon from a stage entity (Barrel / Stick / Chain). */
@@ -294,15 +315,18 @@ export class Game implements GameContext {
     }
   }
 
-  /** Jump straight to a (1-based) stage — the stage-select cheat. */
-  jumpToStage(stageNumber: number): void {
+  /** Jump straight to a (1-based) stage — the stage-select cheat, and (with
+   *  resetTimer:false) the test-harness hook mirroring the python capture driver's
+   *  --stage: the driver jumps right after the intro skip WITHOUT touching the game
+   *  timer, so the fade/live-frame clock keeps running identically on both sides. */
+  jumpToStage(stageNumber: number, opts: { resetTimer?: boolean } = {}): void {
     const index = clamp(stageNumber, 1, this.stages.length) - 1;
     const stage = this.stages[index];
     this.stageIndex = index;
     this.maxScrollOffsetX = stage.max_scroll_x;
     this.scrolling = false;
     this.textActive = false;
-    this.timer = 0;
+    if (opts.resetTimer !== false) this.timer = 0;
     this.weapons = [];
     this.createStageObjects(stage);
     this.player.vpos = new Vec2(400, 400);

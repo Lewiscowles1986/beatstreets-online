@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-08-28T04:37:33.809Z",
+  "gates": {
+    "swing": {
+      "fraction": 0.13894010416666666,
+      "threshold": 0.015,
+      "status": "HARD"
+    }
+  }
+}

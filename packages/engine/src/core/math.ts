@@ -93,7 +93,10 @@ export function safeNormalise(vec: Vec2): [Vec2, number] {
 
 /** Sign of x: -1 if negative, else 1 (never 0) — mirrors arcade_core.math.sign. */
 export function sign(x: number): number {
-  return x < 0 ? -1 : 1;
+  // Python sign(): 1, 0 or -1 for positive, ZERO or negative. The zero case matters:
+  // the enemy flank target y == the player's y fires a choice((-1,1)) draw only when
+  // sign(0) === 0 (bit-exact RNG parity, gauntlet 012 weapon schedule).
+  return x < 0 ? -1 : x > 0 ? 1 : 0;
 }
 
 /** Unit vector from components (mirrors arcade_core.math.normalised). */
