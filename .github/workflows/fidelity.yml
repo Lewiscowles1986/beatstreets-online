@@ -1,0 +1,54 @@
+# Fidelity gate (GOAL G2): on every push/PR, install, build, and run the fidelity +
+# orientation playwright gates (chromium, workers=1). A fidelity regression (a web
+# change that diverges from the authentic python frames) fails loudly here.
+#
+# NOTE: this workflow is committed but NOT verified in CI — this sandbox has no GitHub
+# runner. It is validated locally by running the same commands (`npm run build` +
+# `npx playwright test --project=chromium --workers=1 e2e/fidelity.spec.ts
+# e2e/fidelity-action.spec.ts e2e/game-canvas.spec.ts`). See BUILDER.md.
+
+name: Fidelity
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  fidelity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build app
+        run: npm run build
+
+      - name: Run fidelity + orientation gates
+        run: npx playwright test --project=chromium --workers=1 e2e/fidelity.spec.ts e2e/fidelity-action.spec.ts e2e/game-canvas.spec.ts
+
+      - name: Upload fidelity screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fidelity-screenshots
+          path: e2e/screenshots
+          if-no-files-found: ignore
+
+      - name: Upload playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          if-no-files-found: ignore

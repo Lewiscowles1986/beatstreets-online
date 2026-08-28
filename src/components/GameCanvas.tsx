@@ -27,6 +27,13 @@ export interface GameCanvasProps {
   /** Stop the rAF loop once the game timer reaches this value, freezing the canvas on
    * that exact frame (frame-exact e2e captures; no wall-clock jitter). */
   freezeAtTimer?: number;
+  /** Deterministic action schedule (mirrors the python driver's --press): press a
+   * button on a live-gameplay frame. Frames are in live space (0 = first frame after
+   * the intro fade, game timer 255). Used by the e2e action-frame captures. */
+  pressSchedule?: { frame: number; button: number }[];
+  /** Deterministic hold schedule (mirrors the driver's --hold): hold a direction over
+   * a live-frame range. */
+  holdSchedule?: { dir: 'left' | 'right' | 'up' | 'down'; from: number; to: number }[];
 }
 
 /**
@@ -35,12 +42,12 @@ export interface GameCanvasProps {
  * WebGL backend (falling back to Canvas 2D when WebGL is unavailable). This is the
  * real app surface the shell mounts. Sprites are preloaded first.
  */
-export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl, seed, freezeAtTimer }: GameCanvasProps) {
+export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl, seed, freezeAtTimer, pressSchedule, holdSchedule }: GameCanvasProps) {
   const { ready } = useSpriteAssets();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<Host | null>(null);
   if (hostRef.current === null) {
-    hostRef.current = new Host(width, height, debug, forceCanvas2D, wsUrl, seed);
+    hostRef.current = new Host(width, height, debug, forceCanvas2D, wsUrl, seed, pressSchedule, holdSchedule);
   }
   const [ov, setOv] = useState(() => ({
     scene: 'title' as string,
@@ -164,6 +171,8 @@ class Host {
   private cheatJustOpened = false;
   private pauseJustOpened = false;
   private onSceneChange: (() => void) | null = null;
+  /** Schedule-aware controls wrapper (present only when an action schedule is set). */
+  private scheduled: ScheduledControls | null = null;
 
   /** True once the player has entered a stage; the ctor Game is only reused for the
    *  very first play so the seeded capture path builds the Game exactly once (any
@@ -205,7 +214,16 @@ class Host {
     this.onSceneChange?.();
   }
 
-  constructor(width: number, height: number, debug: boolean, forceCanvas2D: boolean, wsUrl?: string, seed?: number) {
+  constructor(
+    width: number,
+    height: number,
+    debug: boolean,
+    forceCanvas2D: boolean,
+    wsUrl?: string,
+    seed?: number,
+    pressSchedule?: { frame: number; button: number }[],
+    holdSchedule?: { dir: 'left' | 'right' | 'up' | 'down'; from: number; to: number }[],
+  ) {
     this.width = width;
     this.height = height;
     this.debug = debug;
@@ -213,6 +231,13 @@ class Host {
     this.seed = seed;
     // Optionally attach a WebSocket controller (driven remotely).
     this.controls = makeControls(wsUrl ? createWebSocketController(wsUrl) : undefined);
+    // Wrap with a deterministic action schedule (e2e action-frame captures). The
+    // wrapper injects presses/holds at the exact live-gameplay frames the python
+    // driver's --press/--hold schedule does, so the web replays the identical inputs.
+    if (pressSchedule?.length || holdSchedule?.length) {
+      this.scheduled = new ScheduledControls(this.controls, pressSchedule ?? [], holdSchedule ?? []);
+      this.controls = this.scheduled;
+    }
     this.game = this.newGame();
 
     const title = new (class extends Scene {
@@ -243,6 +268,10 @@ class Host {
         super();
       }
       update() {
+        // Advance the action schedule to this frame's live-gameplay index BEFORE the
+        // game reads controls. Live frame N = the frame where the post-intro game
+        // timer becomes 255+N (mirroring the python driver's gameplay_frames counter).
+        this.h.scheduled?.setLiveFrame(this.h.game.textActive ? -1 : this.h.game.timer - 255);
         this.h.game.update();
         // Gather fresh inputs for the Konami detector + pause.
         const tokens = this.h.collectCheatTokens();
@@ -607,6 +636,81 @@ function makeControls(ws?: WebSocketController): DisposableControls {
 
 function clampUnit(v: number): number {
   return Math.max(-1, Math.min(1, v));
+}
+
+/**
+ * A controls wrapper that injects a deterministic action schedule (presses/holds) at
+ * exact live-gameplay frames, mirroring the python driver's --press/--hold. It
+ * delegates to the real controls for everything else, so the schedule is purely
+ * additive and the game logic is unchanged. `setLiveFrame` is called by the Host each
+ * play tick with the current live-gameplay frame index (or -1 during the intro).
+ */
+class ScheduledControls implements DisposableControls {
+  private liveFrame = -1;
+
+  constructor(
+    private inner: DisposableControls,
+    private presses: { frame: number; button: number }[],
+    private holds: { dir: 'left' | 'right' | 'up' | 'down'; from: number; to: number }[],
+  ) {}
+
+  setLiveFrame(frame: number): void {
+    this.liveFrame = frame;
+  }
+
+  private activePresses(): Set<number> {
+    const s = new Set<number>();
+    for (const p of this.presses) if (p.frame === this.liveFrame) s.add(p.button);
+    return s;
+  }
+
+  private holdXY(): [number, number] {
+    let x = 0;
+    let y = 0;
+    for (const h of this.holds) {
+      if (this.liveFrame >= h.from && this.liveFrame <= h.to) {
+        if (h.dir === 'left') x = -1;
+        else if (h.dir === 'right') x = 1;
+        else if (h.dir === 'up') y = -1;
+        else if (h.dir === 'down') y = 1;
+      }
+    }
+    return [x, y];
+  }
+
+  getX(): number {
+    const [x] = this.holdXY();
+    return x !== 0 ? x : this.inner.getX();
+  }
+
+  getY(): number {
+    const [, y] = this.holdXY();
+    return y !== 0 ? y : this.inner.getY();
+  }
+
+  held(b: number): boolean {
+    return this.activePresses().has(b) || this.inner.held(b);
+  }
+
+  pressed(b: number): boolean {
+    return this.activePresses().has(b) || this.inner.pressed(b);
+  }
+
+  rawPressed(key: string): boolean {
+    return this.inner.rawPressed(key);
+  }
+
+  directions(): [boolean, boolean, boolean, boolean] {
+    return this.inner.directions();
+  }
+
+  escPressed(): boolean {
+    return this.inner.escPressed();
+  }
+
+  dispose(): void {
+    this.inner.dispose();
+  }
 }
 
 /** Create a WebSocketController attached to a browser WebSocket at the given URL. */
