@@ -69,6 +69,9 @@ export class Game implements GameContext {
   private outroText = '';
   /** RNG draws trace (present only when `opts.debugRng` is set). */
   rngTrace: TracingRng | null = null;
+  /** Sandbox stage lock (`opts.stageLocked`): the "advance to next stage" trigger is
+   *  skipped, so a jumped-to stage is the ONLY stage — no progression, no outro. */
+  private stageLocked = false;
   /**
    * Pre-drawn world RNG, indexed by stage: one colour_variant per colour-drawing
    * enemy and one durability per stick/chain, in the stage's literal enemy-then-
@@ -83,13 +86,16 @@ export class Game implements GameContext {
   constructor(
     spec: GameSpec,
     controls: ControllerInput,
-    opts: { rng?: Rng; debugRng?: boolean } = {},
+    opts: { rng?: Rng; debugRng?: boolean; stageLocked?: boolean } = {},
   ) {
     this.rng = opts.rng ?? systemRng;
     if (opts.debugRng) {
       this.rngTrace = new TracingRng(this.rng);
       this.rng = this.rngTrace;
     }
+    // Sandbox mode (storybook PlayableStage): clear the stage and the game simply
+    // stays on it — no next-stage progression, no outro text, never "won".
+    this.stageLocked = opts.stageLocked ?? false;
     this.config = spec.config;
     this.attacks = spec.attacks;
     this.characters = spec.characters;
@@ -400,8 +406,9 @@ export class Game implements GameContext {
     // Remove collected powerups and ones off the left of the screen.
     this.powerups = this.powerups.filter((p) => !p.collected && p.vpos.x > -200);
 
-    // Advance to next stage when empty and fully scrolled.
-    if (this.enemies.length === 0 && this.scrollOffset.x === this.maxScrollOffsetX) {
+    // Advance to next stage when empty and fully scrolled (skipped when the stage is
+    // locked — the sandbox stays on its one stage forever).
+    if (!this.stageLocked && this.enemies.length === 0 && this.scrollOffset.x === this.maxScrollOffsetX) {
       this.nextStage();
     }
   }
