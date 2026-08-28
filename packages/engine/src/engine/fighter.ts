@@ -452,8 +452,14 @@ export abstract class Fighter {
     } else {
       animType = this.weapon ? 'walk' : 'stand';
       frame = 0;
+      // Python: the weapon name is added to the walking/standing animation ONLY —
+      // "This isn't done for weapon attack animations, because barrel is released
+      // during the throw animation" — and NOT for pickup/hit/falling either, whose
+      // sprite families have no weapon variants. Hoisting this out of the branch
+      // produced nonexistent names like hero_pickup_barrel_barrel (the holder
+      // vanished during every pickup) and hero_hit_stick (vanishing when hit).
+      if (this.weapon) animType += `_${this.weapon.name}`;
     }
-    if (this.weapon && this.attackTimer <= 0) animType += `_${this.weapon.name}`;
 
     let image = `${this.sprite}_${animType}_${facing}_${frame}`;
     if (this.colourVariant !== null) image += `_${this.colourVariant}`;

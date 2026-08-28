@@ -1049,14 +1049,21 @@ function makeKeyboardControls(): DisposableControls {
 
 /** A representative sprite for a weapon, or null if not applicable. */
 function weaponSprite(w: unknown): string | null {
-  if (w instanceof Barrel) return w.sprite();
-  // Python blanks the weapon sprite while held (pick_up sets image = "blank"):
-  // the fighter switches to the weapon-wielding sprite variants and the weapon
-  // actor itself must be INVISIBLE — drawing it pins the stick at the holder's
-  // feet (the reported "weapon glued to my foot"). Its vpos still tracks the
-  // holder (fighter update) so a drop reappears in the correct place.
-  if (w instanceof Stick || w instanceof Chain) return w.held ? null : w.spriteName;
+  // Python blanks the weapon sprite while held (pick_up sets image = "blank" for
+  // EVERY weapon — barrel included): the fighter switches to the weapon-wielding
+  // sprite variants and the weapon actor itself must be INVISIBLE — drawing it
+  // pins the object at the holder's feet (the reported "weapon glued to my foot").
+  // Its vpos still tracks the holder (fighter update) so a drop reappears in the
+  // correct place.
+  if (w instanceof Weapon) return w.held ? null : weaponGroundSprite(w);
   return null;
+}
+
+/** The sprite a weapon shows while NOT held (barrel roll animation, stick/chain). */
+function weaponGroundSprite(w: Weapon): string {
+  if (w instanceof Barrel) return w.sprite();
+  if (w instanceof Stick || w instanceof Chain) return w.spriteName;
+  return w.name;
 }
 
 /** The draw anchor for a weapon, matching the Python `Weapon` anchors. */
