@@ -132,11 +132,12 @@ async function assertActionFrame(
 
 test('enemy attack on hero (hero in hit animation) — INFORMATIONAL', async ({ page }) => {
   // Python: --state play --skip-intro --frames-to-play 290 --seed 1 --hold right:0:290
-  // The enemy (vax) attacks the hero at live frame ~271; the hit lands ~285. Freeze at
-  // game timer 255+290=545 so the hero is in hit animation.
+  // The enemy (vax) walks in and attacks; the hit lands. The python driver captures at
+  // game timer 544 (live frame 289 — the loop breaks when gameplay_frames >= 290, so
+  // the last processed live frame is 289). Freeze at timer 544 to match the reference.
   await assertActionFrame(
     page,
-    '/stage.html?seed=1&freeze=545&hold=right:0:290',
+    '/stage.html?seed=1&freeze=544&hold=right:0:290',
     resolve(REFERENCE, 'beatstreets-action-enemyattack.png'),
     resolve(OUT_DIR, 'fidelity-action-enemyattack.png'),
     'enemyattack',
@@ -145,11 +146,11 @@ test('enemy attack on hero (hero in hit animation) — INFORMATIONAL', async ({ 
 
 test('hero punch connecting (hero in punch animation, enemy hit) — INFORMATIONAL', async ({ page }) => {
   // Python: --state play --skip-intro --frames-to-play 185 --seed 1 --hold right:0:180
-  // --press 180:0. The hero walks to the enemy and punches; the punch connects at live
-  // frame ~178. Freeze at game timer 255+185=440.
+  // --press 180:0. The hero walks to the enemy and punches; the punch connects. The
+  // python driver captures at game timer 439 (live frame 184). Freeze at timer 439.
   await assertActionFrame(
     page,
-    '/stage.html?seed=1&freeze=440&hold=right:0:180&press=180:0',
+    '/stage.html?seed=1&freeze=439&hold=right:0:180&press=180:0',
     resolve(REFERENCE, 'beatstreets-action-heropunch.png'),
     resolve(OUT_DIR, 'fidelity-action-heropunch.png'),
     'heropunch',
