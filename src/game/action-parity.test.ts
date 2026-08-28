@@ -173,16 +173,10 @@ describe('weapon schedule RNG parity (stage jump + stick)', () => {
   it('full randint stream matches python — incl. the stick drop (randint[0,2]) and durability (randint[12,16])', () => {
     const py = pythonRandints(resolve(REFERENCE, 'beatstreets-weapon-rng.txt'));
     const web = replayWeaponSchedule();
-    // 014 state: the first 352 draws match python EXACTLY (the whole fight through
-    // the hoodie's death approach). The remaining delta: python's stick-drop roll
-    // (randint(0,2) at draw 352, then randint(12,16)) arrives at web draw 354
-    // because the hoodie's own-punch cascade runs +2 frames (its special-attack
-    // stamina cost drives the knockdown at live 226 vs python's 224) — one frame
-    // past the freeze boundary. 015: implement EnemyHoodie.died() (the stick drop
-    // is currently missing entirely) and close the ±2 cadence delta, then this
-    // test asserts the FULL stream.
-    const matched = py.length - 2;
-    expect(web.slice(0, matched)).toEqual(py.slice(0, matched));
-    expect(web.length).toBeGreaterThanOrEqual(matched);
+    // 015: EnemyHoodie.died() now drops the stick (randint(0,2)==0 + the
+    // randint(12,16) durability in the Stick ctor). The full python stream must
+    // appear inside the web's, allowing <=2 trailing freeze-boundary draws.
+    expect(py.length - web.length).toBeLessThanOrEqual(2);
+    expect(web.slice(0, py.length)).toEqual(py);
   });
 });

@@ -3,6 +3,7 @@ import { GameContext, FallingState } from './fighter';
 import { Character } from '../dsl/characters';
 import { Vec2 } from '../core/math';
 import { Attack } from './attack';
+import { Stick } from './weapons';
 
 /**
  * Concrete enemies. Character tuning (attacks, health, speed, score) comes from the
@@ -25,6 +26,14 @@ export class EnemyHoodie extends Enemy {
       startTimer: opts.startTimer ?? 20,
       colourVariant: opts.colourVariant ?? game.rng.randint(0, 2),
     });
+  }
+
+  /** Python beatstreets.py ~1242: on death, chance of dropping a stick. */
+  override died(): void {
+    super.died();
+    if (this.game.rng.randint(0, 2) === 0) {
+      this.game.weapons.push(new Stick(this.game, this.vpos.clone()));
+    }
   }
 }
 

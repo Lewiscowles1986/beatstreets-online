@@ -182,7 +182,7 @@ class Host {
    *  update after the intro text ends, without resetting the game timer — the exact
    *  counterpart of the driver's post-update jump so both sides see identical state
    *  (the stage enemies update during the fade, so the jump frame matters). */
-  private pendingStageJump: { stage: number; place?: { x: number; y: number }; postFlipUpdates: number } | null = null;
+  private pendingStageJump: { stage: number; place?: { x: number; y: number } } | null = null;
 
   /** True once the player has entered a stage; the ctor Game is only reused for the
    *  very first play so the seeded capture path builds the Game exactly once (any
@@ -237,7 +237,7 @@ class Host {
     place?: { x: number; y: number },
   ) {
     if (jumpStage !== undefined) {
-      this.pendingStageJump = { stage: jumpStage, place, postFlipUpdates: 0 };
+      this.pendingStageJump = { stage: jumpStage, place };
     }
     this.width = width;
     this.height = height;
@@ -352,11 +352,17 @@ class Host {
     if (!canvas) return;
     // Size the canvas backing store (and CSS size) so it isn't the 300x150 default.
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = this.width * dpr;
-    canvas.height = this.height * dpr;
     canvas.style.width = `${this.width}px`;
     canvas.style.height = `${this.height}px`;
     if (this.isWebGL) {
+      // WebGLRender's gl.viewport, full-screen quad, u_res and offscreen overlay are
+      // all LOGICAL-size (800x480). On a HiDPI display (devicePixelRatio 2) a
+      // dpr-scaled backing store would confine the frame to the buffer's bottom-left
+      // quarter — the game appears at half linear size with stale-buffer garbage
+      // (preserveDrawingBuffer leaves the never-drawn region uncleared) elsewhere.
+      // Keep the drawing buffer at logical size; the browser upscales to the CSS box.
+      canvas.width = this.width;
+      canvas.height = this.height;
       try {
         this.render = new WebGLRender(canvas, this.width, this.height);
         return;
@@ -364,6 +370,8 @@ class Host {
         this.isWebGL = false;
       }
     }
+    canvas.width = this.width * dpr;
+    canvas.height = this.height * dpr;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('no 2d context');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -416,19 +424,17 @@ class Host {
   }
 
   /** Build a Game, seeding its RNG when a seed is configured (deterministic replays). */
-  /** Apply the pending harness stage jump: one full update after the intro text
-   *  ends (the driver's hook fires post-update on the frame after the skip), timer
-   *  untouched, then place the player if requested. */
+  /** Apply the pending harness stage jump at the end of the FIRST update after the
+   *  intro text ends — the exact counterpart of the driver's post-update --stage
+   *  hook and the headless replay's jump (gauntlet 014: the +1-update delay here
+   *  shifted the browser fight timeline relative to the verified headless stream),
+   *  timer untouched, then place the player if requested. */
   private applyPendingStageJump(): void {
     const p = this.pendingStageJump;
     if (!p || this.game.textActive) return;
-    if (p.postFlipUpdates >= 1) {
-      this.game.jumpToStage(p.stage, { resetTimer: false });
-      if (p.place) this.game.player.vpos = new Vec2(p.place.x, p.place.y);
-      this.pendingStageJump = null;
-    } else {
-      p.postFlipUpdates += 1;
-    }
+    this.game.jumpToStage(p.stage, { resetTimer: false });
+    if (p.place) this.game.player.vpos = new Vec2(p.place.x, p.place.y);
+    this.pendingStageJump = null;
   }
 
   private newGame(): Game {
