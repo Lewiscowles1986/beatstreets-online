@@ -11,14 +11,20 @@ import { Attack } from './attack';
  */
 
 export class EnemyVax extends Enemy {
-  constructor(game: GameContext, char: Character, pos: Vec2, opts: { startTimer?: number } = {}) {
-    super(game, char, pos, { startTimer: opts.startTimer ?? 20, colourVariant: game.rng.randint(0, 2) });
+  constructor(game: GameContext, char: Character, pos: Vec2, opts: { startTimer?: number; colourVariant?: number } = {}) {
+    super(game, char, pos, {
+      startTimer: opts.startTimer ?? 20,
+      colourVariant: opts.colourVariant ?? game.rng.randint(0, 2),
+    });
   }
 }
 
 export class EnemyHoodie extends Enemy {
-  constructor(game: GameContext, char: Character, pos: Vec2, opts: { startTimer?: number } = {}) {
-    super(game, char, pos, { startTimer: opts.startTimer ?? 20, colourVariant: game.rng.randint(0, 2) });
+  constructor(game: GameContext, char: Character, pos: Vec2, opts: { startTimer?: number; colourVariant?: number } = {}) {
+    super(game, char, pos, {
+      startTimer: opts.startTimer ?? 20,
+      colourVariant: opts.colourVariant ?? game.rng.randint(0, 2),
+    });
   }
 }
 
@@ -34,9 +40,12 @@ export class EnemyScooterboy extends Enemy {
     game: GameContext,
     char: Character,
     pos: Vec2,
-    opts: { startTimer?: number } = {},
+    opts: { startTimer?: number; colourVariant?: number } = {},
   ) {
-    super(game, char, pos, { startTimer: opts.startTimer ?? 20, colourVariant: game.rng.randint(0, 2) });
+    super(game, char, pos, {
+      startTimer: opts.startTimer ?? 20,
+      colourVariant: opts.colourVariant ?? game.rng.randint(0, 2),
+    });
     this.state = EnemyState.RIDING_SCOOTER;
     this.slowSpeed = char.scooter_speed_slow ?? 4;
     this.fastSpeed = char.scooter_speed_fast ?? 12;
@@ -142,8 +151,11 @@ function moveToward(n: number, target: number, speed: number): number {
 
 /** The final boss — more health/stamina, grab+throw attack. */
 export class EnemyBoss extends Enemy {
-  constructor(game: GameContext, char: Character, pos: Vec2, opts: { startTimer?: number } = {}) {
-    super(game, char, pos, { startTimer: opts.startTimer ?? 20 });
+  constructor(game: GameContext, char: Character, pos: Vec2, opts: { startTimer?: number; colourVariant?: number } = {}) {
+    super(game, char, pos, {
+      startTimer: opts.startTimer ?? 20,
+      colourVariant: opts.colourVariant ?? game.rng.randint(0, 2),
+    });
   }
 
   protected override onGrabAttack(): void {

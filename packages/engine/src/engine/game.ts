@@ -10,7 +10,7 @@ import { Barrel, Stick, Chain, Weapon } from './weapons';
 import { HealthPowerup, ExtraLifePowerup, Powerup } from './powerups';
 import { ControllerInput } from '../core/controller';
 import { Vec2, clamp } from '../core/math';
-import { Rng, systemRng } from '../core/prng';
+import { Rng, systemRng, TracingRng } from '../core/prng';
 
 export interface Rect {
   left: number;
@@ -66,13 +66,26 @@ export class Game implements GameContext {
   private soundsPlayed: string[] = [];
   private introText = '';
   private outroText = '';
+  /** RNG draws trace (present only when `opts.debugRng` is set). */
+  rngTrace: TracingRng | null = null;
+  /**
+   * Pre-drawn world RNG, indexed by stage: one colour_variant per colour-drawing
+   * enemy and one durability per stick/chain, in the stage's literal enemy-then-
+   * weapon order. Drawn in the Game ctor BEFORE the stolen-item choice to mirror the
+   * Python game's `setup_stages()` (all stages are pre-built at construction).
+   */
+  private preDrawnWorld: { colours: number[]; durabilities: number[] }[] = [];
 
   constructor(
     spec: GameSpec,
     controls: ControllerInput,
-    opts: { rng?: Rng } = {},
+    opts: { rng?: Rng; debugRng?: boolean } = {},
   ) {
     this.rng = opts.rng ?? systemRng;
+    if (opts.debugRng) {
+      this.rngTrace = new TracingRng(this.rng);
+      this.rng = this.rngTrace;
+    }
     this.config = spec.config;
     this.attacks = spec.attacks;
     this.characters = spec.characters;
@@ -82,6 +95,13 @@ export class Game implements GameContext {
     this.player = new Player(this, controls);
     this.boundary = { left: 0, top: this.config.MIN_WALK_Y, right: this.config.WIDTH - 1, bottom: this.config.HEIGHT - 1 };
     this.textActive = spec.config.INTRO_ENABLED;
+    // Mirror the Python game's Game.__init__ draw order:
+    //   1. setup_stages() pre-builds EVERY stage's colour variants + weapon
+    //      durabilities (Python: EnemyVax/Hoodie/Scooterboy/Boss colour_variant
+    //      randint(0,2), Stick/Chain durability).
+    //   2. THEN the stolen-item choice for the intro text.
+    // (The web used to draw the stolen-item choice FIRST — reordered here.)
+    this.preDrawWorldRng();
     // Intro/outro story text (data-driven from story.json).
     const stolen = this.rng.choice(this.story.stolen_items) ?? '';
     this.introText = this.story.intro_prefix + stolen + this.story.intro_suffix;
@@ -89,6 +109,28 @@ export class Game implements GameContext {
     if (this.textActive) {
       this.currentText = this.introText;
       this.displayedText = '';
+    }
+  }
+
+  /**
+   * Consume the world-setup RNG draws Python makes at Game construction. Iterates
+   * every stage (enemies first, then weapons — the Python Stage literal order),
+   * drawing one `randint(0,2)` colour_variant for each colour-bearing enemy and one
+   * durability for each stick/chain. Stored per stage so a lazily-built stage reuses
+   * its pre-drawn values (no re-draw) — matching Python, which pre-builds all stages.
+   */
+  private preDrawWorldRng(): void {
+    for (const stage of this.stages) {
+      const colours: number[] = [];
+      const durabilities: number[] = [];
+      for (const e of stage.enemies) {
+        if (isColourVariantEnemy(e.type)) colours.push(this.rng.randint(0, 2));
+      }
+      for (const w of stage.weapons) {
+        if (w.type === 'Stick') durabilities.push(this.rng.randint(12, 16));
+        else if (w.type === 'Chain') durabilities.push(this.rng.randint(18, 25));
+      }
+      this.preDrawnWorld.push({ colours, durabilities });
     }
   }
 
@@ -107,8 +149,14 @@ export class Game implements GameContext {
   }
 
   playSound(name: string, variants = 1): void {
-    this.soundsPlayed.push(name);
-    void variants;
+    // Mirror Python `get_sound → randint(0, count-1)`: EVERY sound draw consumes a
+    // variant from the game's RNG — including count-1 sounds (randint(0,0)) and
+    // sounds from off-screen/inaudible events. Selection is decoupled from playback
+    // so the draw still happens when audio is muted/unavailable (headless e2e has no
+    // AudioContext; Python's mixer is in try/except too).
+    const variant = this.rng.randint(0, variants - 1);
+    this.soundsPlayed.push(variants > 1 ? `${name}${variant}` : name);
+    void variant;
   }
 
   scrollX(): number {
@@ -152,9 +200,13 @@ export class Game implements GameContext {
   }
 
   private createStageObjects(stage: Stage): void {
+    const pre = this.preDrawnWorld[this.stageIndex] ?? { colours: [], durabilities: [] };
     const enemies: Enemy[] = [];
     for (const e of stage.enemies) {
-      const enemy = this.buildEnemy(e);
+      // Reuse the colour variant pre-drawn at construction (matching Python, which
+      // pre-builds every stage at Game init). Portal spawns draw live instead.
+      const colour = isColourVariantEnemy(e.type) ? pre.colours.shift() : undefined;
+      const enemy = this.buildEnemy(e, colour);
       if (enemy) enemies.push(enemy);
     }
     this.enemies = enemies;
@@ -162,12 +214,12 @@ export class Game implements GameContext {
     // Reset weapons/powerups to this stage's spawns.
     this.weapons = [];
     this.powerups = [];
-    this.addStageWorldObjects(stage);
+    this.addStageWorldObjects(stage, pre.durabilities);
   }
 
-  private addStageWorldObjects(stage: Stage): void {
+  private addStageWorldObjects(stage: Stage, durabilities: number[] = []): void {
     for (const w of stage.weapons) {
-      const weapon = this.buildWeapon(w);
+      const weapon = this.buildWeapon(w, w.type === 'Stick' || w.type === 'Chain' ? durabilities.shift() : undefined);
       if (weapon) this.weapons.push(weapon);
     }
     for (const p of stage.powerups) {
@@ -177,15 +229,15 @@ export class Game implements GameContext {
   }
 
   /** Build a weapon from a stage entity (Barrel / Stick / Chain). */
-  private buildWeapon(e: SpawnEntry): WeaponLike | null {
+  private buildWeapon(e: SpawnEntry, durability?: number): WeaponLike | null {
     const pos = new Vec2(Number(e.pos[0]), e.pos[1] === 'MIN_WALK_Y' ? this.config.MIN_WALK_Y : Number(e.pos[1]));
     switch (e.type) {
       case 'Barrel':
         return new Barrel(this, pos);
       case 'Stick':
-        return new Stick(this, pos);
+        return new Stick(this, pos, durability);
       case 'Chain':
-        return new Chain(this, pos);
+        return new Chain(this, pos, durability);
       default:
         return null;
     }
@@ -204,8 +256,13 @@ export class Game implements GameContext {
     }
   }
 
-  /** Build an enemy from a stage entity, resolving MIN_WALK_Y positions. */
-  private buildEnemy(e: SpawnEntry): Enemy | null {
+  /**
+   * Build an enemy from a stage entity, resolving MIN_WALK_Y positions. `colourVariant`
+   * is the value pre-drawn at Game construction (for stage-defined enemies); when
+   * omitted (portal spawns) the enemy draws its own live colour_variant, matching
+   * Python's spawn-time `randint(0,2)`.
+   */
+  private buildEnemy(e: SpawnEntry, colourVariant?: number): Enemy | null {
     const name = e.type;
     const char = this.characters.characters[name.toLowerCase().replace('enemy', '')];
     if (!char) return null;
@@ -213,7 +270,7 @@ export class Game implements GameContext {
       Number(e.pos[0]),
       e.pos[1] === 'MIN_WALK_Y' ? this.config.MIN_WALK_Y : Number(e.pos[1]),
     );
-    const common = { startTimer: e.start_timer };
+    const common = { startTimer: e.start_timer, colourVariant };
     switch (name) {
       case 'EnemyVax':
         return new EnemyVax(this, char, pos, common);
@@ -256,6 +313,7 @@ export class Game implements GameContext {
 
   update(): void {
     this.timer += 1;
+    if (this.rngTrace) this.rngTrace.frame = this.timer;
 
     if (this.textActive) {
       this.updateText();
@@ -369,4 +427,14 @@ export class Game implements GameContext {
   getOutroText(): string {
     return this.outroText;
   }
+}
+
+/**
+ * Enemy types that draw a `colour_variant` (`randint(0,2)`) at construction in the
+ * Python game (vax/hoodie/scooterboy/boss). Portals do not. Used by the world
+ * pre-draw pass so the web consumes the same colour-variant draws Python does in
+ * `setup_stages()`.
+ */
+function isColourVariantEnemy(type: string): boolean {
+  return type === 'EnemyVax' || type === 'EnemyHoodie' || type === 'EnemyScooterboy' || type === 'EnemyBoss';
 }

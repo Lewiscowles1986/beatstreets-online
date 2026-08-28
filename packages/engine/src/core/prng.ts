@@ -184,3 +184,48 @@ export const systemRng: Rng = {
   randint: (min, max) => Math.floor(Math.random() * (max - min + 1)) + min,
   choice: (seq) => seq[Math.floor(Math.random() * seq.length)],
 };
+
+/** One recorded RNG draw (for debug/draw-parity traces). */
+export interface RngDraw {
+  kind: 'random' | 'randint' | 'choice';
+  args: unknown[];
+  value: unknown;
+  /** The game frame this draw was made on (0 when the tracer is used engine-only). */
+  frame: number;
+}
+
+/**
+ * A pass-through RNG wrapper that records every draw it forwards. Used by the Game
+ * (`opts.debugRng`) and by draw-parity tests to compare the web's RNG consumption
+ * against a Python `--trace-rng` capture. Does not alter the drawn values.
+ */
+export class TracingRng implements Rng {
+  readonly draws: RngDraw[] = [];
+  /** The game frame tag applied to subsequent draws (engine sets it each tick). */
+  frame = 0;
+
+  constructor(private inner: Rng) {}
+
+  random(): number {
+    const v = this.inner.random();
+    this.draws.push({ kind: 'random', args: [], value: v, frame: this.frame });
+    return v;
+  }
+
+  randint(min: number, max: number): number {
+    const v = this.inner.randint(min, max);
+    this.draws.push({ kind: 'randint', args: [min, max], value: v, frame: this.frame });
+    return v;
+  }
+
+  choice<T>(seq: readonly T[]): T {
+    const v = this.inner.choice(seq);
+    this.draws.push({ kind: 'choice', args: [seq.length], value: v, frame: this.frame });
+    return v;
+  }
+
+  /** Total number of draws forwarded so far. */
+  get count(): number {
+    return this.draws.length;
+  }
+}
