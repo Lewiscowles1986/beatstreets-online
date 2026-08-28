@@ -38,6 +38,27 @@
    longer** (21 vs 19 draws) in the first fall/get-up cycle, shifting the RNG state.
    The far two enemies are bit-exact in position for the entire run.
 
+## Correction (013): the 012 window analysis was frame-offset-bugged
+
+The 012 note mapped the driver's rng-trace frames to live frames with a derived
+offset (679) that was WRONG — the true offset is 724 (proven by a temporary
+in-game probe: the first backoff draw at trace frame 994 is the game timer 270 =
+live 15, matching an instrumented backoff-check print; the python file was
+restored immediately, git-verified). With the correct mapping: python's backoff
+windows are lives 15-61 / 205-223 / 367-385 and the web's are lives 15-61 /
+205-225 / 367-385+ — **window 1 matches EXACTLY** (47 draws, same values — the
+streams genuinely aligned through draw 302); the divergence is ONLY window 2
+running +2 live frames (205-225 vs 205-223). The window starts when the fight
+hoodie becomes eligible again (post get-up ~live 204 after its knockdown at
+~live 62 from the player's uppercut) and ends when the player's punch lands on
+it (~224 python / ~226 web) — so the +2 lives in the hit-landing timing of the
+punch thrown at live 213 (the attack-frame-2 timing), NOT in the approach/fade
+phase, the press timing, or the get-up logic (all verified identical). 013's
+probe plan is accordingly: log the web's per-frame attack frame counter +
+hit-landing live frames for the punch thrown at live 213 and compare against the
+python playerstate rows (using the driver's own live field, never a derived
+offset).
+
 ## Honest failure (013 opening item)
 
 The weapon schedule is NOT yet bit-exact: the fight hoodie's first fall lands ~2 live
