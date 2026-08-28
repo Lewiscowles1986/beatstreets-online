@@ -133,6 +133,11 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
   // the EXACT moment the last teletype RNG draw fires (mirroring the python driver,
   // which waits for full display before injecting the skip button press).
   const introComplete = scene === 'play' && ov.textActive && ov.text.length > 0 && ov.displayedText.length >= ov.text.length;
+  // Scene overlays are self-sized 800x480 blocks (their own <canvas> or a sized div);
+  // without absolute positioning they stack BELOW the game canvas in flow and the
+  // shell page shows the scene twice (the reported "weird effect during play on
+  // index.html"). They must cover the game canvas.
+  const overlayStyle: React.CSSProperties = { position: 'absolute', inset: 0, pointerEvents: 'none' };
 
   return (
     <div style={{ position: 'relative', width, height }} data-scene={scene} data-timer={ov.timer} data-intro-complete={introComplete ? '1' : undefined} data-frozen={ov.frozen ? '1' : undefined}>
@@ -141,23 +146,43 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
         role="application"
         aria-label={`Beat Streets game, stage ${stage}. Use arrow keys to move and space to attack.`}
       />
-      {scene === 'title' && <TitleScreen width={width} height={height} frame={ov.titleFrame} />}
-      {scene === 'controls' && <ControlsScreen width={width} height={height} />}
-      {scene === 'pause' && (
-        <MenuOverlay
-          width={width}
-          height={height}
-          title="PAUSED"
-          items={[{ label: 'RESUME' }, { label: 'QUIT' }]}
-          cursor={ov.pauseCursor}
-          hint="UP/DOWN SELECT   SPACE CONFIRM   ESC RESUME"
-          ariaLabel="Pause menu"
-        />
+      {scene === 'title' && (
+        <div style={overlayStyle}>
+          <TitleScreen width={width} height={height} frame={ov.titleFrame} />
+        </div>
       )}
-      {scene === 'cheat' && <CheatOverlay width={width} height={height} cursor={ov.cheatCursor} godMode={ov.godMode} onePunch={ov.onePunch} stageSelect={ov.cheatStageSelect} stage={ov.cheatStage} />}
-      {scene === 'game-over' && <GameOverScreen width={width} height={height} won={ov.won} score={ov.score} />}
+      {scene === 'controls' && (
+        <div style={overlayStyle}>
+          <ControlsScreen width={width} height={height} />
+        </div>
+      )}
+      {scene === 'pause' && (
+        <div style={overlayStyle}>
+          <MenuOverlay
+            width={width}
+            height={height}
+            title="PAUSED"
+            items={[{ label: 'RESUME' }, { label: 'QUIT' }]}
+            cursor={ov.pauseCursor}
+            hint="UP/DOWN SELECT   SPACE CONFIRM   ESC RESUME"
+            ariaLabel="Pause menu"
+          />
+        </div>
+      )}
+      {scene === 'cheat' && (
+        <div style={overlayStyle}>
+          <CheatOverlay width={width} height={height} cursor={ov.cheatCursor} godMode={ov.godMode} onePunch={ov.onePunch} stageSelect={ov.cheatStageSelect} stage={ov.cheatStage} />
+        </div>
+      )}
+      {scene === 'game-over' && (
+        <div style={overlayStyle}>
+          <GameOverScreen width={width} height={height} won={ov.won} score={ov.score} />
+        </div>
+      )}
       {scene === 'play' && ov.textActive && (
-        <IntroOutroText width={width} height={height} text={ov.text} displayedText={ov.displayedText} textActive={ov.textActive} timer={ov.timer} />
+        <div style={overlayStyle}>
+          <IntroOutroText width={width} height={height} text={ov.text} displayedText={ov.displayedText} textActive={ov.textActive} timer={ov.timer} />
+        </div>
       )}
     </div>
   );
