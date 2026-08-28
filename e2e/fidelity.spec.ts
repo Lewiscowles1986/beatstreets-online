@@ -50,7 +50,25 @@ const PROMPT_REGION_Y = 420;
 const WIDTH = 800;
 const HEIGHT = 480;
 const CHANNEL_THRESHOLD = 8;
-const MAX_DIFF_FRACTION = 0.01; // target <=1% at threshold 8
+const MAX_DIFF_FRACTION = 0.01; // target <=1% at threshold 8 (title)
+
+/**
+ * HARD gate for the stage-1 live-gameplay frame (GOAL G3). Threshold derivation
+ * (006 MEASUREMENT.md):
+ *   - Aligned metric (web replay of the full intro/fade flow, seed=1): 0.79%
+ *     (3031/384000 px, threshold 8/channel). Rock-stable across repeated runs.
+ *   - Threshold = 1.5% = min(2 * 0.79%, 15%) per the GOAL's headroom rule, rounded
+ *     down to a clean number: ~1.9x the measured metric for minor anti-aliasing /
+ *     ±1-sprite-edge jitter, while staying an order of magnitude below every
+ *     structural-failure signature:
+ *       missing HUD        ~12%  (>1.5% -> FAILS)
+ *       vertically-flipped ~40%  (>1.5% -> FAILS)
+ *       sprites all wrong  ~12%+ (>1.5% -> FAILS)
+ *   A genuine structure break therefore cannot hide under this gate; only sub-1.5%
+ *   cosmetic jitter (e.g. a ±1 animation frame or bar-clip edge) passes, which is the
+ *   documented residual source, not a state divergence.
+ */
+const MAX_STAGE_DIFF_FRACTION = 0.015;
 
 /** Compare two PNG buffers in the browser and return the per-pixel diff summary. */
 async function pixelDiff(page: import('@playwright/test').Page, a: Buffer, b: Buffer) {
@@ -270,19 +288,25 @@ test('stage-1 live gameplay frame diff vs Python reference (seeded, deterministi
 
   // title -> controls -> play (button 0 = Space), matching the driver's frames 0 and 2.
   await page.keyboard.press('Space');
-  await page.waitForTimeout(120);
+  await page.waitForSelector('[data-scene="controls"]', { timeout: 15000 });
   await page.keyboard.press('Space');
-
-  // Wait until the play scene is active, then skip the intro text with a button-0 press.
   await page.waitForSelector('[data-scene="play"]', { timeout: 15000 });
-  await page.waitForTimeout(200);
+
+  // The game now plays the intro story text. Wait until it is FULLY revealed — the
+  // moment the last teletype RNG draw fires (data-intro-complete), mirroring the
+  // python driver, which waits for full display before injecting the skip press. Only
+  // then do we press button 0 to skip it (resetting the timer to 0, the fade window).
+  await page.waitForSelector('[data-intro-complete="1"]', { timeout: 25000 });
   await page.keyboard.press('Space');
 
-  // Wait out the 255-frame fade + 90 live-gameplay frames FRAME-EXACTLY: the stage
-  // entry (stage.html?freeze=345) stops its rAF loop the moment the game timer reaches
-  // 345, so the canvas holds exactly that frame's render — no wall-clock jitter can
-  // advance the state between freeze and screenshot.
-  await page.waitForSelector('[data-frozen="1"]', { timeout: 30000 });
+  // Wait out the 255-frame fade window + 90 live-gameplay frames FRAME-EXACTLY: the
+  // stage entry (stage.html?freeze=345) stops its rAF loop the moment the post-intro
+  // game timer reaches 345 (= 255 fade + 90 live, matching the python driver). Verified
+  // metric-neutral across freeze 344/345/346 (identical 0.79% — the sprites hold the
+  // same pose across that window), so the 344/345 off-by-one is immaterial.
+  // game timer reaches 345, so the canvas holds exactly that frame's render — no
+  // wall-clock jitter can advance the state between freeze and screenshot.
+  await page.waitForSelector('[data-frozen="1"]', { timeout: 40000 });
 
   const shot = await canvas.screenshot();
   mkdirSync(OUT_DIR, { recursive: true });
@@ -297,35 +321,18 @@ test('stage-1 live gameplay frame diff vs Python reference (seeded, deterministi
   const composite = await sideBySide(page, shot, ref);
   writeFileSync(STAGE_SIDEBYSIDE, Buffer.from(composite.split(',')[1], 'base64'));
 
-  // Informational, per G4's contract. The web engine's RNG core is a bit-identical
-  // reimplementation of CPython's MT19937 (core/prng.ts, seededRng == cpythonRng), and
-  // round 005 routed sound-variant selection through game.rng (get_sound ->
-  // randint(0, count-1)) and aligned the world-setup draw order (enemy colour variants
-  // + weapon durability drawn at Game construction, BEFORE the stolen-item choice,
-  // matching Python's setup_stages). An engine-level draw-parity test now verifies the
-  // web's constructor consumes the EXACT same 85 world-setup draws Python does at seed 1
-  // (src/game/sound-parity.test.ts).
-  //
-  // The entity STATES still do NOT bit-align between a web capture and the Python
-  // capture at the same seed, because the web consumes RNG draws in a DIFFERENT
-  // FRAME FLOW than the Python driver:
-  //   (1) Python runs the intro text (teletype draws) + 255-frame fade + menu frames,
-  //       so by its freeze point it has consumed 184 draws (85 world-setup + 99
-  //       intro/fade/combat sounds). The web's GameCanvas Host uses jumpToStage, which
-  //       skips the intro text + fade entirely, so the web's single Game reaches only
-  //       its 85 world-setup draws (plus the GameCanvas Host additionally constructs the
-  //       Game twice — once in the Host ctor, once at startPlay — re-seeding each).
-  //   (2) The residual ~99 draws Python consumes from intro-text teletype and fade/early
-  //       enemy-combat sounds are therefore missing on the web, so the web's RNG stream
-  //       is at a different position than Python's and the enemy's per-frame state
-  //       diverges.
-  // Because these are engine/frame-flow divergences (not PRNG correctness or missing
-  // sound-variant draws), the stage stays informational — a hard gate over these
-  // unaligned states would be "picking a loose threshold to pass". The measured stage
-  // metric (3.53%, essentially unchanged from 3.50%) confirms the residual is
-  // frame-flow state divergence, not the audio RNG. Exact divergence points are
-  // documented in docs/FIDELITY.md §4 and the 005-.../MEASUREMENT.md + BUILDER.md.
+  // HARD gate (GOAL G3). Round 006 made the web replay the FULL python flow instead of
+  // jumpToStage: the stage entry now drives title -> controls -> play, lets the intro
+  // story text play out (all 99 teletype sound draws), skips it, runs the 255-frame
+  // fade window + 90 live frames, and freezes frame-exactly at the post-intro timer 345
+  // (freeze=345). The web's RNG stream is now bit-identical to Python's 184 draws by
+  // the freeze point (verified in src/game/sound-parity.test.ts), so the web and Python
+  // render the SAME idle player at (400,400) with no enemies. The measured diff dropped
+  // from 3.53% (round 005, where the 3rd Space press attacked an active player) to 0.79%
+  // (idle player matching Python), stable across repeated runs. The residual is HUD
+  // bar-clip / sprite-edge jitter (see MAX_STAGE_DIFF_FRACTION), not a state divergence.
+  expect(diff.fraction).toBeLessThanOrEqual(MAX_STAGE_DIFF_FRACTION);
   console.log(
-    `fidelity stage diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (informational)`,
+    `fidelity stage diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (HARD gate <= ${(MAX_STAGE_DIFF_FRACTION * 100).toFixed(2)}%)`,
   );
 });
