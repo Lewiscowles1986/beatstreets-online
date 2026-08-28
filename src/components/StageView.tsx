@@ -1,5 +1,6 @@
 import { CanvasRender } from '../game/render/canvas-render';
 import { Stage } from '@beatstreets/engine';
+import { config } from '../game/data';
 import { useCanvas } from './useCanvas';
 import { useSpriteAssets } from './useSpriteAssets';
 import { spriteFor } from './spriteFor';
@@ -18,8 +19,9 @@ export interface StageViewProps {
 }
 
 /**
- * Renders a single stage from its (resolved) DSL spec onto a canvas: enemies, weapons
- * and powerups, each drawn as its sprite. Waits for the shared sprite preloader before
+ * Renders a single stage from its (resolved) DSL spec onto a canvas: the same road +
+ * background tiles the game draws (`draw_background` port), then enemies, weapons and
+ * powerups, each drawn as its sprite. Waits for the shared sprite preloader before
  * drawing so sprites actually appear. This is the "compose a stage from JSON" view.
  */
 export function StageView({
@@ -33,10 +35,23 @@ export function StageView({
 
   const canvasRef = useCanvas(width, height, (ctx) => {
     const render = new CanvasRender(ctx, width, height);
-    render.clear('#1a1a1a');
-    // Ground / road.
-    render.fillRect(0, 360, width, 2, '#444');
-    render.fillRect(0, 360, width, height - 360, '#0d0d0d');
+    const cfg = config();
+    // The game's scrolling world: road wrapped by scroll offset, then background
+    // tiles laid out left->right (GameCanvas.drawBackground port) — without this the
+    // story showed a black void whenever the stage's entities sat beyond the viewport.
+    const road1x = -(scrollOffsetX % cfg.WIDTH);
+    render.blitSprite('road', road1x, 0, ['left', 'top']);
+    render.blitSprite('road', road1x + cfg.WIDTH, 0, ['left', 'top']);
+    let posX = -scrollOffsetX - cfg.BACKGROUND_TILE_SPACING;
+    for (const tile of cfg.BACKGROUND_TILES) {
+      if (posX + 417 >= 0) {
+        render.blitSprite(tile, posX, 0, ['left', 'top']);
+        posX += cfg.BACKGROUND_TILE_SPACING;
+        if (posX >= cfg.WIDTH) break;
+      } else {
+        posX += cfg.BACKGROUND_TILE_SPACING;
+      }
+    }
 
     const drawEntity = (type: string, pos: [number, number], colour: string) => {
       const x = pos[0] - scrollOffsetX;
