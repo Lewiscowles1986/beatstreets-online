@@ -26,7 +26,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
  * the get-up logic, which is identical: frame>120 FALLING, frame>20 GETTING_UP,
  * move_towards identical). The RNG stream matches python for the first 302/354 draws
  * then the web consumes 2 extra back-off draws (its in-range window is 2 frames
- * longer). Measured diffs 29.25%/14.74%/13.89%. This is the 013 opening item: pin the
+ * longer). Measured diffs 24.40%/12.51%/11.24%. This is the 013 opening item: pin the
  * per-frame player attackTimer + hoodie fall frame against the driver's --trace-enemy
  * playerstate rows (added in 012) and find the ±2-frame source in the hit/fall cycle.
  * The python reference PNGs + RNG trace are committed and verified
