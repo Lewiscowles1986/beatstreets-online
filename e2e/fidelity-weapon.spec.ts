@@ -117,8 +117,8 @@ async function driveToFreeze(page: import('@playwright/test').Page, url: string)
   await page.waitForSelector('[data-scene="controls"]', { timeout: 15000 });
   await page.keyboard.press('Space');
   await page.waitForSelector('[data-scene="play"]', { timeout: 15000 });
-  await page.waitForSelector('[data-intro-complete="1"]', { timeout: 25000 });
-  await page.keyboard.press('Space');
+  // The harness auto-skips the intro deterministically at timer 1 (?skip=1 in the
+  // url) — the python driver's timing. Do NOT press again here.
   await page.waitForSelector('[data-frozen="1"]', { timeout: 120000 });
   return canvas;
 }
@@ -143,36 +143,36 @@ async function assertWeaponFrame(
   expect(diff.fraction).toBeLessThanOrEqual(MAX_WEAPON_DIFF_FRACTION);
 }
 
-test.skip('stick on the ground + pickup animation start — HARD', async ({ page }) => {
+test('stick on the ground + pickup animation start — HARD', async ({ page }) => {
   // Python: --state play --skip-intro --frames-to-play 882 --seed 1 --stage 5
   // --place 700:420 --hold left:0:4 + 35 presses (live 627 = the pickup press).
   await assertWeaponFrame(
     page,
-    `/stage.html?seed=1&freeze=882&stage=5&place=700:420&${SCHEDULE}`,
+    `/stage.html?seed=1&freeze=882&skip=1&stage=5&place=700:420&${SCHEDULE}`,
     resolve(REFERENCE, 'beatstreets-weapon-pickup.png'),
     resolve(OUT_DIR, 'fidelity-weapon-pickup.png'),
     'pickup',
   );
 });
 
-test.skip('pickup animation mid-frame (pickup_stick sprite) — HARD', async ({ page }) => {
+test('pickup animation mid-frame (pickup_stick sprite) — HARD', async ({ page }) => {
   // Same run, freeze at live 639 (timer 894): the pickup animation is playing
   // (pickup_animation='stick', frame ~12 -> sprite pickup_stick_0).
   await assertWeaponFrame(
     page,
-    `/stage.html?seed=1&freeze=894&stage=5&place=700:420&${SCHEDULE}`,
+    `/stage.html?seed=1&freeze=894&skip=1&stage=5&place=700:420&${SCHEDULE}`,
     resolve(REFERENCE, 'beatstreets-weapon-pickup-anim.png'),
     resolve(OUT_DIR, 'fidelity-weapon-pickup-anim.png'),
     'pickupanim',
   );
 });
 
-test.skip('stick swing (weapon attack sprite) — HARD', async ({ page }) => {
+test('stick swing (weapon attack sprite) — HARD', async ({ page }) => {
   // Same run, freeze at live 671 (timer 926): the press at 669 started the stick
   // attack (attack frame 2 = hit frame).
   await assertWeaponFrame(
     page,
-    `/stage.html?seed=1&freeze=926&stage=5&place=700:420&${SCHEDULE}`,
+    `/stage.html?seed=1&freeze=926&skip=1&stage=5&place=700:420&${SCHEDULE}`,
     resolve(REFERENCE, 'beatstreets-weapon-swing.png'),
     resolve(OUT_DIR, 'fidelity-weapon-swing.png'),
     'swing',

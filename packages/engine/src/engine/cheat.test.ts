@@ -47,7 +47,11 @@ describe('CheatState (menu navigation)', () => {
     expect(c.stage).toBe(3);
     const action = c.update({ up: false, down: false, a: true, b: false });
     expect(action).toBe('select');
-    expect(c.mode).toBe('menu');
+    // The confirm deliberately leaves mode as 'stage-select' so the caller can
+    // tell a stage pick (jump + resume) from a GOD/ONE-PUNCH toggle; the caller
+    // resets the mode after acting. selectedItem stays null in that mode.
+    expect(c.mode).toBe('stage-select');
+    expect(c.selectedItem).toBeNull();
   });
 
   it('clamps stage selection to [1, stageCount]', () => {

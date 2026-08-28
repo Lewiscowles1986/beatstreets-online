@@ -68,7 +68,10 @@ export class CanvasRender implements Render {
     if (typeof anchor[1] === 'number') dy -= anchor[1];
     else if (anchor[1] === 'center') dy -= h / 2;
     else if (anchor[1] === 'bottom') dy -= h;
-    this.ctx.drawImage(img, dx, dy);
+    // pygame blits truncate the destination to int (toward zero). The canvas
+    // drawImage would instead smooth subpixel positions, softening every sprite
+    // in scrolled scenes (the scroll offset is fractional) vs the python render.
+    this.ctx.drawImage(img, Math.trunc(dx), Math.trunc(dy));
   }
 
   /** Blit only the top-left `srcW`×`srcH` region of a sprite (clipped bar fill). */

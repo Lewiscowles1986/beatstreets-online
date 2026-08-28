@@ -39,6 +39,14 @@ export interface GameCanvasProps {
   jumpStage?: number;
   /** Test-harness player placement (mirrors --place): player vpos after the jump. */
   place?: { x: number; y: number };
+  /** Test-harness intro auto-skip (mirrors the python capture driver's --skip-intro):
+   * deterministically press button 0 on this game timer (the driver skips at the
+   * very first play update — the intro story text is still empty at that point —
+   * NOT after the full teletype). Waiting for the full teletype puts the stage jump
+   * ~730 timer-frames later than the driver, and the stage scroll (which runs from
+   * the hero placement through the fade) ends ~380px short — the reported weapon-gate
+   * divergence. */
+  autoSkipAt?: number;
 }
 
 /**
@@ -47,12 +55,12 @@ export interface GameCanvasProps {
  * WebGL backend (falling back to Canvas 2D when WebGL is unavailable). This is the
  * real app surface the shell mounts. Sprites are preloaded first.
  */
-export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl, seed, freezeAtTimer, pressSchedule, holdSchedule, jumpStage, place }: GameCanvasProps) {
+export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl, seed, freezeAtTimer, pressSchedule, holdSchedule, jumpStage, place, autoSkipAt }: GameCanvasProps) {
   const { ready } = useSpriteAssets();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<Host | null>(null);
   if (hostRef.current === null) {
-    hostRef.current = new Host(width, height, debug, forceCanvas2D, wsUrl, seed, pressSchedule, holdSchedule, jumpStage, place);
+    hostRef.current = new Host(width, height, debug, forceCanvas2D, wsUrl, seed, pressSchedule, holdSchedule, jumpStage, place, autoSkipAt);
   }
   const [ov, setOv] = useState(() => ({
     scene: 'title' as string,
@@ -65,6 +73,10 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
     text: '',
     displayedText: '',
     timer: 0,
+    scroll: 0,
+    heroX: 0,
+    atk: 0,
+    pick: '',
     cheatCursor: 0,
     cheatStage: 1,
     cheatStageSelect: false,
@@ -140,7 +152,7 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
   const overlayStyle: React.CSSProperties = { position: 'absolute', inset: 0, pointerEvents: 'none' };
 
   return (
-    <div style={{ position: 'relative', width, height }} data-scene={scene} data-timer={ov.timer} data-intro-complete={introComplete ? '1' : undefined} data-frozen={ov.frozen ? '1' : undefined}>
+    <div style={{ position: 'relative', width, height }} data-scene={scene} data-timer={ov.timer} data-scroll={ov.scroll.toFixed(2)} data-herox={ov.heroX.toFixed(2)} data-atk={ov.atk} data-pick={ov.pick} data-intro-complete={introComplete ? '1' : undefined} data-frozen={ov.frozen ? '1' : undefined} data-pause-cursor={ov.pauseCursor} data-cheat-cursor={ov.cheatCursor} data-cheat-stage={ov.cheatStage} data-cheat-mode={ov.cheatStageSelect ? 'stage-select' : 'menu'} data-god-mode={ov.godMode ? '1' : undefined} data-one-punch={ov.onePunch ? '1' : undefined}>
       <canvas
         ref={canvasRef}
         role="application"
@@ -164,7 +176,7 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
             title="PAUSED"
             items={[{ label: 'RESUME' }, { label: 'QUIT' }]}
             cursor={ov.pauseCursor}
-            hint="UP/DOWN SELECT   SPACE CONFIRM   ESC RESUME"
+            hint={'UP DOWN SELECT\nSPACE CONFIRM\nESC RESUME'}
             ariaLabel="Pause menu"
           />
         </div>
@@ -246,6 +258,10 @@ class Host {
       text: this.game.currentText,
       displayedText: this.game.displayedText,
       timer: this.game.timer,
+      scroll: this.game.scrollOffset.x,
+      heroX: this.game.player.vpos.x,
+      atk: this.game.player.attackTimer,
+      pick: this.game.player.pickupAnimation ?? '',
       cheatCursor: this.game.cheatState.cursor,
       cheatStage: this.game.cheatState.stage,
       cheatStageSelect: this.game.cheatState.mode === 'stage-select',
@@ -269,6 +285,7 @@ class Host {
     holdSchedule?: { dir: 'left' | 'right' | 'up' | 'down'; from: number; to: number }[],
     jumpStage?: number,
     place?: { x: number; y: number },
+    private autoSkipAt?: number,
   ) {
     if (jumpStage !== undefined) {
       this.pendingStageJump = { stage: jumpStage, place };
@@ -317,6 +334,15 @@ class Host {
         super();
       }
       update() {
+        // Harness intro auto-skip (driver parity): press button 0 exactly once at the
+        // target game timer — the python driver skips at the very first play update,
+        // while the story text is still (near-)empty. Without this the browser waited
+        // for the full teletype, putting the stage jump ~730 timer-frames later and
+        // leaving the stage scroll ~380px short of the python reference.
+        if (this.h.autoSkipAt !== undefined && !this.h.autoSkipDone && this.h.game.timer >= this.h.autoSkipAt) {
+          this.h.autoSkipDone = true;
+          this.h.scheduled?.press(0);
+        }
         // Advance the action schedule to this frame's live-gameplay index BEFORE the
         // game reads controls. Live frame N = the frame where the post-intro game
         // timer becomes 255+N (mirroring the python driver's gameplay_frames counter,
@@ -540,11 +566,22 @@ class Host {
       a: this.controls.pressed(0),
       b: this.controls.pressed(1),
     });
-    if (action === 'close') {
+    if (action === 'close' || this.controls.escPressed()) {
+      // B (button 1) or ESC leaves the menu back to gameplay.
+      this.game.cheatState.mode = 'menu';
       this.sceneManager.switch('play');
-    } else if (action === 'select' && this.game.cheatState.selectedItem === null) {
-      // Stage select chosen a stage.
-      this.game.jumpToStage(this.game.cheatState.stage);
+      this.notifyScene();
+    } else if (action === 'select' && this.game.cheatState.mode === 'stage-select') {
+      // Stage select confirmed a stage: jump straight there and resume play.
+      // cheatState deliberately leaves mode as 'stage-select' on the confirm so
+      // the caller can tell a stage pick from a GOD/ONE-PUNCH toggle (the old
+      // `selectedItem === null` guard never fired because the mode was already
+      // flipped back to 'menu' before the action was returned).
+      const stage = this.game.cheatState.stage;
+      this.game.cheatState.mode = 'menu';
+      this.game.jumpToStage(stage);
+      this.sceneManager.switch('play');
+      this.notifyScene();
     }
   }
 
@@ -560,6 +597,7 @@ class Host {
   }
 
   private batchedUpdates = 0;
+  private autoSkipDone = false;
 
   /**
    * Freeze-harness fast path: advance up to `n` game updates per call WITHOUT the
@@ -777,6 +815,9 @@ function clampUnit(v: number): number {
  */
 class ScheduledControls implements DisposableControls {
   private liveFrame = -1;
+  /** One-shot manual presses (the harness intro auto-skip): set before the update
+   *  that must see them, cleared by update() at the start of the NEXT frame. */
+  private manualPresses = new Set<number>();
 
   constructor(
     private inner: DisposableControls,
@@ -786,6 +827,11 @@ class ScheduledControls implements DisposableControls {
 
   setLiveFrame(frame: number): void {
     this.liveFrame = frame;
+  }
+
+  /** Manual one-shot press, visible to the immediately following game update. */
+  press(b: number): void {
+    this.manualPresses.add(b);
   }
 
   private activePresses(): Set<number> {
@@ -823,7 +869,7 @@ class ScheduledControls implements DisposableControls {
   }
 
   pressed(b: number): boolean {
-    return this.activePresses().has(b) || this.inner.pressed(b);
+    return this.manualPresses.has(b) || this.activePresses().has(b) || this.inner.pressed(b);
   }
 
   rawPressed(key: string): boolean {
@@ -840,6 +886,7 @@ class ScheduledControls implements DisposableControls {
 
   update(): void {
     this.inner.update();
+    this.manualPresses.clear();
   }
 
   dispose(): void {
@@ -903,7 +950,6 @@ type RawGamepadLike = { id: string; buttons: Array<{ pressed: boolean }>; axes: 
 
 function makeKeyboardControls(): DisposableControls {
   const down = new Set<string>();
-  const prev = new Set<string>();
   // Button edges, python-parity semantics (Controls.update / is_button_pressed):
   // a keydown CAPTURES the edge immediately (a fast tap between frames is never
   // lost), and the per-frame update() promotes it to a NON-DESTRUCTIVE frame edge
@@ -912,6 +958,15 @@ function makeKeyboardControls(): DisposableControls {
   // (pure per-frame recompute) or starved non-first readers (destructive set).
   const pendingEdges = [false, false, false, false];
   const edges = [false, false, false, false];
+  // Raw-key edges (menu navigation: ArrowUp/ArrowDown/Escape) use the same
+  // non-destructive pattern: onDown captures into pendingRawKeys, update()
+  // promotes the whole set once per frame, and rawPressed reads it without
+  // mutating anything. The previous implementation kept a `prev` set that
+  // rawPressed itself mutated on every poll — the first poll added the key even
+  // while it was NOT down, so the eventual real press saw was=true and returned
+  // false: every up/down press in the menus was swallowed.
+  let pendingRawKeys = new Set<string>();
+  let rawEdges = new Set<string>();
   // python KeyboardControls.button_down: punch=space/z/lctrl, kick=x/lalt,
   // elbow=c/lshift, flying kick=a.
   const map: Record<number, string[]> = {
@@ -932,12 +987,11 @@ function makeKeyboardControls(): DisposableControls {
     down.add(e.key);
     const b = buttonFor(e.key);
     if (b !== null) pendingEdges[b] = true;
+    pendingRawKeys.add(e.key);
   };
   const onUp = (e: KeyboardEvent) => {
     down.delete(e.code);
     down.delete(e.key);
-    prev.delete(e.code);
-    prev.delete(e.key);
   };
   window.addEventListener('keydown', onDown);
   window.addEventListener('keyup', onUp);
@@ -951,14 +1005,12 @@ function makeKeyboardControls(): DisposableControls {
         edges[b] = pendingEdges[b];
         pendingEdges[b] = false;
       }
+      rawEdges = pendingRawKeys;
+      pendingRawKeys = new Set();
     },
     pressed: (b: number) => edges[b],
-    rawPressed: (key: string) => {
-      const was = prev.has(key);
-      const is = down.has(key);
-      prev.add(key);
-      return is && !was;
-    },
+    // Per-frame raw-key edge, non-destructive (see pendingRawKeys above).
+    rawPressed: (key: string) => rawEdges.has(key),
     directions: () => {
       const up = down.has('ArrowUp') || down.has('w');
       const dn = down.has('ArrowDown') || down.has('s');
@@ -966,7 +1018,7 @@ function makeKeyboardControls(): DisposableControls {
       const rt = down.has('ArrowRight') || down.has('d');
       return [up, dn, lf, rt];
     },
-    escPressed: () => down.has('Escape'),
+    escPressed: () => rawEdges.has('Escape'),
     dispose: () => {
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);

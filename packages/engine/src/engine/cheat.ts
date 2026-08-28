@@ -53,14 +53,16 @@ export class CheatState {
    * selects, B (button 1) backs out.
    *
    * @returns an action the caller acts on ('select' when stage chosen / toggled,
-   *   'close' when the menu is closed).
+   *   'close' when the menu is closed). On a stage-select confirm the mode is
+   *   deliberately LEFT as 'stage-select' — the caller reads `stage` and jumps,
+   *   then resets the mode itself; flipping it back here made the old caller-side
+   *   `selectedItem === null` guard unsatisfiable, so SPACE never jumped.
    */
   update(input: { up: boolean; down: boolean; a: boolean; b: boolean }): CheatAction {
     if (this.mode === 'stage-select') {
       if (input.up) this.stage = clamp(this.stage + 1, this.minStage, this.stageCount);
       if (input.down) this.stage = clamp(this.stage - 1, this.minStage, this.stageCount);
       if (input.a) {
-        this.mode = 'menu';
         return 'select'; // stage chosen -> caller jumps to this.stage
       }
       if (input.b) {

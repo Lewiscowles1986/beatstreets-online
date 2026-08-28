@@ -286,8 +286,11 @@ export class WebGLRender {
         [x, y + h, 0, v1],
       ];
       for (const [px, py, u, v] of verts) {
-        floats[i++] = px;
-        floats[i++] = py;
+        // pygame blits truncate the destination to int (toward zero); float quad
+        // positions would let the GPU bilinear-sample half-texel edges, softening
+        // every sprite in scrolled scenes vs the python render.
+        floats[i++] = Math.trunc(px);
+        floats[i++] = Math.trunc(py);
         floats[i++] = u;
         floats[i++] = v;
       }

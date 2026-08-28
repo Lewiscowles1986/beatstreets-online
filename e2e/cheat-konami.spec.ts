@@ -16,17 +16,28 @@ import { test, expect } from '@playwright/test';
 
 const URL = '/stage.html?seed=1&freeze=0'; // freeze=0 -> the LIVE loop (the harness defaults freeze=345)
 
+// The drive waits through the full natural intro teletype (~12s) plus the ~9s
+// Konami feed — comfortably over Playwright's default 30s test timeout when the
+// suite runs under parallel load (020: both tests flaked to timeout there).
+test.setTimeout(90_000);
+
 async function driveToLivePlay(page: import('@playwright/test').Page) {
   await page.setViewportSize({ width: 800, height: 480 });
-  await page.goto(URL);
+  // skip=1 lets the harness auto-press through the intro text: the natural
+  // ~730-frame teletype made `data-intro-complete` time out at 25s under
+  // parallel worker load (020). Live gameplay = post-skip timer >= 255 (the
+  // fade window), which holds under any frame rate.
+  await page.goto(`${URL}&skip=1`);
   const canvas = page.locator('canvas[aria-label^="Beat Streets game"]');
   await expect(canvas).toBeVisible({ timeout: 15000 });
   await page.keyboard.press('Space');
   await page.waitForSelector('[data-scene="controls"]', { timeout: 15000 });
   await page.keyboard.press('Space');
   await page.waitForSelector('[data-scene="play"]', { timeout: 15000 });
-  await page.waitForSelector('[data-intro-complete="1"]', { timeout: 25000 });
-  await page.keyboard.press('Space'); // skip the intro text -> live gameplay
+  await page.waitForFunction(() => {
+    const el = document.querySelector('[data-timer]');
+    return el !== null && Number(el.getAttribute('data-timer')) >= 255;
+  }, { timeout: 60000 });
   return canvas;
 }
 

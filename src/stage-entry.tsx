@@ -53,6 +53,16 @@ const place = placeParam
   ? (([x, y]) => ({ x: Number(x), y: Number(y) }))(placeParam.split(':'))
   : undefined;
 
+// Deterministic intro auto-skip (?skip=1): press button 0 at game timer 1 — exactly
+// what the python capture driver does (its skip lands on the first play update, long
+// before the teletype finishes). The stage scroll runs from the hero placement
+// through the 255-frame fade, so a late (teletype-waiting) skip leaves the scroll
+// ~380px short of the python reference.
+const autoSkipAt = params.get('skip') ? 1 : undefined;
+
+// Debug overlay passthrough (scroll position readout) for manual alignment probes.
+const debug = params.get('debug') === '1';
+
 createRoot(document.getElementById('root')!).render(
   <GameCanvas
     width={800}
@@ -63,5 +73,7 @@ createRoot(document.getElementById('root')!).render(
     holdSchedule={holdSchedule}
     jumpStage={jumpStage}
     place={place}
+    autoSkipAt={autoSkipAt}
+    debug={debug}
   />,
 );
