@@ -233,17 +233,17 @@ first frame after the intro fade, game timer 255). The web stage entry mirrors i
 - **Hero punch connecting** — `--hold right:0:180 --press 180:0` (the hero walks to the
   enemy and punches). Web: `stage.html?seed=1&freeze=439&hold=right:0:180&press=180:0` (same N-1 rule).
 
-These gates are **INFORMATIONAL**, not HARD: the RNG streams agree exactly for the
-ctor 85-draw prefix and the first 190 randint draws (asserted by
-`src/game/action-parity.test.ts` against the committed python traces
-`e2e/reference/beatstreets-action-*-rng.txt`); they diverge at the enemy post-hit
-state branch — python draws the `randint(0,500)` approach back-off while the web
-enters a different post-hit state (`randint(0,1)` fall choice) — plus 2 freeze-boundary
-sound draws. Measured diff ~8-9% vs 0.73% for the idle stage. Round 009 fixed the
-underlying AI mechanics (scroll speed /WIDTH/4, boundary rect movement, approach
-back-off draw — verified line-level against beatstreets.py); round 010 scopes the
-post-hit state-branch fix, after which the parity test flips to a full-stream
-assertion and these gates promote to HARD.
+These gates are **HARD** (≤1.5%) since round 010: the combat simulation is
+BIT-EXACT with python — the full randint stream matches for both schedules (asserted
+by `src/game/action-parity.test.ts` against the committed python traces
+`e2e/reference/beatstreets-action-*-rng.txt`) — and the rendering matches: measured
+diffs 0.72%/0.80% sit at the stage-1 dithering baseline (0.73%). Root causes closed
+on the way: round 009 (scroll speed /WIDTH/4, boundary rect movement, approach
+back-off draw) and round 010 (JS `in`-on-array hit-frame check — indices vs python's
+value membership, which landed every hit on the attack's first frame — and the
+draw-order sort dropping `get_draw_order_offset`, so same-Y enemies rendered over
+the hero). The web may draw ≤2 extra freeze-boundary sound variants after the
+python stream ends (capture-window timing, documented in 010 MEASUREMENT.md).
 
 ## 5. Python → web data flow
 

@@ -212,13 +212,26 @@ describe('audio-variant RNG parity', () => {
     const game = seededGame(1);
     game.jumpToStage(1);
     const enemy = game.enemies[0];
-    game.player.vpos = new (Object.getPrototypeOf(game.player.vpos).constructor)(enemy.vpos.x - 60, enemy.vpos.y);
+    // Keep both fighters in the no-scroll zone (screen x < WIDTH-300): past it, Game.
+    // update re-runs createStageObjects each frame and the enemy under test is replaced
+    // mid-fight (the real flow spawns stage objects once, when scrolling starts).
+    enemy.vpos.x = 520;
+    game.player.vpos = new (Object.getPrototypeOf(game.player.vpos).constructor)(460, enemy.vpos.y);
     game.player.facingX = 1;
     const trace = game.rngTrace as TracingRng;
     const start = trace.count;
     (game.player.controls as IdleControls).press(0);
     const startHealth = enemy.health;
-    for (let i = 0; i < 60 && enemy.health === startHealth; i++) game.update();
+    // The punch now lands on python's real timing (attack frame 2 of 3, ~12-17 updates
+    // after the press — before the 010 hit-frame fix the JS `in`-on-array bug landed
+    // every hit on the animation's first frame). The enemy may legitimately back off
+    // during the wind-up (python's randint(0,500) approach back-off), so keep the
+    // player in range like a chasing player would.
+    for (let i = 0; i < 120 && enemy.health === startHealth; i++) {
+      game.player.vpos.x = enemy.vpos.x - 60;
+      game.player.facingX = 1;
+      game.update();
+    }
     expect(enemy.health).toBeLessThan(startHealth); // the punch landed
     const combatDraws = trace.draws.slice(start);
     // punch_whoosh (initial) + punch_hit (hit sound) both consume randint(0,3).

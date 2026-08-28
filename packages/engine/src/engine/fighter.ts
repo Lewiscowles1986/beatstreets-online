@@ -265,7 +265,10 @@ export abstract class Fighter {
       // Attacking.
       this.frame += 1;
       const attackFrame = this.lastAttack!.frameAt(this.frame);
-      if (attackFrame in this.lastAttack!.hitFrames) {
+      // Python: `if frame in self.last_attack.hit_frames` — VALUE membership. JS `in`
+      // on an array checks INDICES (`0 in [2]` is true), which landed every hit on the
+      // attack's first animation frame; use includes() to mirror python.
+      if (this.lastAttack!.hitFrames.includes(attackFrame)) {
         if (this.lastAttack!.throw) {
           if (this.lastAttack!.grab) {
             this.onThrowGrab();

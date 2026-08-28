@@ -15,11 +15,13 @@ import { loadGameSpec } from './data';
  *     --seed 1 --hold right:0:180 --press 180:0 --trace-rng   (hero-punch)
  * ).
  *
- * KNOWN DIVERGENCE (009, engine-model): the streams agree exactly for the ctor prefix
- * (85 draws) and the first ~190 draws; at the punch-connect point the web enemy enters
- * a different post-hit state than python (python draws the `randint(0,500)` approach
- * back-off; the web draws a `randint(0,1)` fall choice) — the first diverging index is
- * pinned below so round 010's state-machine fix flips it to a full-stream assertion.
+ * Full-stream parity (010): the ENTIRE python randint stream matches the web replay
+ * for both schedules. 009 pinned a 190-draw prefix because a JS `in`-on-array bug
+ * (`attackFrame in hitFrames` checks indices, python checks values) landed every hit
+ * on the attack's first animation frame; fixed in fighter.ts and asserted full-stream
+ * here. The web may draw up to 2 extra freeze-boundary sound variants after the
+ * python stream ends (capture-window timing) — the comparison covers exactly the
+ * python stream length.
  */
 
 const REFERENCE = resolve(__dirname, '../../e2e/reference');
@@ -108,13 +110,10 @@ describe.each([
     expect(web).toEqual(py);
   });
 
-  it(`randint stream agrees with python through the aligned prefix`, () => {
+  it('full randint stream matches python (web may add freeze-boundary draws after)', () => {
     const py = pythonRandints(resolve(REFERENCE, trace));
     const web = replaySchedule(holdTo, pressAt, freeze).draws;
-    // 009: the first divergence is the enemy post-hit state branch (python
-    // randint(0,500) approach back-off vs web randint(0,1) fall choice). Round 010
-    // fixes the state machine; until then pin the aligned prefix so regressions fail.
-    const ALIGNED_PREFIX = 190;
-    expect(web.slice(0, ALIGNED_PREFIX)).toEqual(py.slice(0, ALIGNED_PREFIX));
+    expect(web.length).toBeGreaterThanOrEqual(py.length);
+    expect(web.slice(0, py.length)).toEqual(py);
   });
 });

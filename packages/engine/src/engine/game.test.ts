@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Game } from './game';
+import { FallingState } from './fighter';
 import { Player } from './player';
 import { EnemyVax } from './enemies';
 import { buildSpec } from '../dsl/game-spec';
@@ -159,8 +160,11 @@ describe('Game engine', () => {
     const enemy = game.enemies[0];
     const before = enemy.health;
 
-    // Place player right in front of the enemy, facing it.
-    game.player.vpos = new Vec2(enemy.vpos.x - 60, enemy.vpos.y);
+    // Place player right in front of the enemy, facing it. Both stay in the no-scroll
+    // zone (screen x < WIDTH-300): past it, update() re-runs createStageObjects every
+    // frame and the enemy under test would be replaced mid-fight.
+    enemy.vpos.x = 520;
+    game.player.vpos = new Vec2(460, enemy.vpos.y);
     game.player.facingX = 1;
     const controls = game.player.controls as FakeControls;
     controls.press(0);
@@ -248,7 +252,9 @@ describe('Game engine', () => {
     const game = new Game(testSpec(), new FakeControls());
     game.jumpToStage(1);
     const enemy = game.enemies[0];
-    game.player.vpos = new Vec2(enemy.vpos.x - 60, enemy.vpos.y);
+    // No-scroll zone: see the damage test above (avoid per-frame createStageObjects).
+    enemy.vpos.x = 520;
+    game.player.vpos = new Vec2(460, enemy.vpos.y);
     game.player.facingX = 1;
     const controls = game.player.controls as FakeControls;
     game.cheatState.settings.onePunch = true;
@@ -257,8 +263,14 @@ describe('Game engine', () => {
     for (let i = 0; i < 30; i++) {
       game.update();
     }
-    // Enemy health should hit zero and it should be removed.
+    // Enemy health should hit zero and the knock-out should start immediately.
     expect(enemy.health).toBe(0);
+    expect(enemy.fallingState).toBe(FallingState.FALLING);
+    // Removal happens after the fall-out animation (frame > 240 → lives 0 → despawn),
+    // mirroring python's knockdown-then-despawn timing.
+    for (let i = 0; i < 260 && game.enemies.includes(enemy); i++) {
+      game.update();
+    }
     expect(game.enemies).not.toContain(enemy);
   });
 });
