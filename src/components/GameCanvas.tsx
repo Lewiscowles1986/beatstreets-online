@@ -40,7 +40,7 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<Host | null>(null);
   if (hostRef.current === null) {
-    hostRef.current = new Host(width, height, stage, debug, forceCanvas2D, wsUrl, seed);
+    hostRef.current = new Host(width, height, debug, forceCanvas2D, wsUrl, seed);
   }
   const [ov, setOv] = useState(() => ({
     scene: 'title' as string,
@@ -73,9 +73,14 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
       host.tick();
       refresh();
       // Frame-exact freeze for e2e captures: after the tick that reaches the target
-      // timer, the canvas holds exactly that frame's render — stop the loop so no
-      // further tick (and no wall-clock jitter) can advance it before the screenshot.
-      if (freezeAtTimer !== undefined && host.getOverlayState().timer >= freezeAtTimer) {
+      // post-intro timer, the canvas holds exactly that frame's render — stop the loop
+      // so no further tick (and no wall-clock jitter) can advance it before the
+      // screenshot. The `!textActive` guard matters because the game timer ALSO counts
+      // up while the intro story text is playing (python drives it to ~732 before the
+      // skip resets the timer to 0); the freeze target is measured AFTER the intro is
+      // skipped (fade window + live frames), so we must not freeze during the intro.
+      const ov = host.getOverlayState();
+      if (freezeAtTimer !== undefined && !ov.textActive && ov.timer >= freezeAtTimer) {
         setOv((prev) => ({ ...prev, frozen: true }));
         return;
       }
@@ -102,9 +107,14 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
   }
 
   const scene = ov.scene;
+  // Intro story text is fully revealed once the teletype has caught up to the whole
+  // string. Exposed as a DOM attribute so the e2e stage capture can skip the intro at
+  // the EXACT moment the last teletype RNG draw fires (mirroring the python driver,
+  // which waits for full display before injecting the skip button press).
+  const introComplete = scene === 'play' && ov.textActive && ov.text.length > 0 && ov.displayedText.length >= ov.text.length;
 
   return (
-    <div style={{ position: 'relative', width, height }} data-scene={scene} data-timer={ov.timer} data-frozen={ov.frozen ? '1' : undefined}>
+    <div style={{ position: 'relative', width, height }} data-scene={scene} data-timer={ov.timer} data-intro-complete={introComplete ? '1' : undefined} data-frozen={ov.frozen ? '1' : undefined}>
       <canvas
         ref={canvasRef}
         role="application"
@@ -138,7 +148,6 @@ type Renderer = CanvasRender | WebGLRender;
 class Host {
   private width: number;
   private height: number;
-  private stage: number;
   private debug: boolean;
   private game: Game;
   private sceneManager = new SceneManager();
@@ -155,6 +164,11 @@ class Host {
   private cheatJustOpened = false;
   private pauseJustOpened = false;
   private onSceneChange: (() => void) | null = null;
+
+  /** True once the player has entered a stage; the ctor Game is only reused for the
+   *  very first play so the seeded capture path builds the Game exactly once (any
+   *  later replay — game-over -> title -> play — builds a fresh one). */
+  private playedOnce = false;
 
   /** Subscribe to scene transitions so React can render overlays. */
   setOnSceneChange(cb: (() => void) | null): void {
@@ -191,10 +205,9 @@ class Host {
     this.onSceneChange?.();
   }
 
-  constructor(width: number, height: number, stage: number, debug: boolean, forceCanvas2D: boolean, wsUrl?: string, seed?: number) {
+  constructor(width: number, height: number, debug: boolean, forceCanvas2D: boolean, wsUrl?: string, seed?: number) {
     this.width = width;
     this.height = height;
-    this.stage = stage;
     this.debug = debug;
     this.isWebGL = !forceCanvas2D;
     this.seed = seed;
@@ -323,10 +336,16 @@ class Host {
   }
 
   startPlay(): void {
+    // Reuse the ctor-created Game for the first play (it is still fresh — the title
+    // scene never updates it — and its RNG has consumed exactly the python-matching 85
+    // world-setup draws). Subsequent plays build a fresh Game. No jumpToStage: the
+    // Game ctor already enters the intro-story state (text_active), which is what the
+    // python driver plays through, so the intro text + fade window + live frames all
+    // fire the SAME sound draws python does.
+    if (this.playedOnce) this.game = this.newGame();
+    this.playedOnce = true;
     this.sceneManager.switch('play');
     this.notifyScene();
-    this.game = this.newGame();
-    this.game.jumpToStage(this.stage);
     this.konami.reset();
     this.pauseCursor = 0;
     this.cheatJustOpened = false;

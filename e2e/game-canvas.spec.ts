@@ -34,11 +34,15 @@ test('WebGL render matches the 2D render orientation (not vertically flipped)', 
     await page.getByRole('button', { name: 'Play' }).click();
     const canvas = page.locator('canvas[aria-label^="Beat Streets game"]');
     await expect(canvas).toBeVisible({ timeout: 15000 });
-    // Advance title -> controls -> play, then let a few gameplay frames render.
+    // Advance title -> controls -> play, then skip the intro story text so live
+    // gameplay is visible. (The web does not render the black fade overlay, so the
+    // player shows immediately after the skip; only a few live frames are needed.)
     await page.keyboard.press('Space');
-    await page.waitForTimeout(120);
+    await page.waitForSelector('[data-scene="controls"]', { timeout: 15000 });
     await page.keyboard.press('Space');
-    await page.waitForTimeout(400);
+    await page.waitForSelector('[data-scene="play"]', { timeout: 15000 });
+    await page.keyboard.press('Space'); // skip the intro text
+    await page.waitForTimeout(300);
     return canvas.screenshot();
   };
 

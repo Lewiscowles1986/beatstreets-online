@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import { Game, cpythonRng, TracingRng, GameButton, ControllerInput, EnemyVax } from '@beatstreets/engine';
 import { loadGameSpec } from './data';
 
@@ -15,10 +16,11 @@ import { loadGameSpec } from './data';
  *   2. The Game constructor consumes the exact world-setup RNG Python does at
  *      `setup_stages()`: 83 enemy colour_variant randint(0,2) + 1 Stick durability
  *      randint(12,16), then the stolen-item choice — bit-identical values for seed 1.
- *   3. The web now draws for gameplay sound events (not just 3 baseline draws), with the
- *      residual gap vs Python's 184 draws precisely attributed to the documented
- *      frame-flow divergence (the web's jumpToStage skips the intro text + 255-frame fade
- *      that the Python driver runs). See MEASUREMENT.md.
+ *   3. The full intro replay (intro text plays out -> skip -> fade window -> live
+ *      frames, i.e. NO jumpToStage) consumes the complete 184-draw stream Python does
+ *      by the freeze point: 85 ctor draws + 99 intro-text teletype `get_sound[0,0]`
+ *      draws. There are NO fade/combat draws in the first 90 live frames (the idle
+ *      player spawns no enemies until it scrolls), so python's 184 == 85 + 99.
  *
  * Python reference vector below: the 84 numeric world-setup draws (83 colour + 1 Stick
  * durability) captured from the Python driver at seed 1, in construction order.
@@ -29,6 +31,21 @@ const PY_CTOR_NUMERIC: number[] = [
   0, 1, 1, 2, 1, 2, 15, 2, 0, 1, 0, 2, 1, 1, 2, 0,
 ];
 const PY_CTOR_CHOICE = 'THE COMPLETE WORKS OF\nSHAKESPEARE';
+
+/**
+ * SHA-256 over the sequence of NUMERIC draws (kind + args + value), excluding the
+ * stolen-item `choice`. Captured from the Python driver (--seed 1 --skip-intro
+ * --frames-to-play 90 --trace-rng): 184 randint draws (85 ctor `__init__` + 99
+ * teletype sound variants), all
+ * values bit-identical. The single `choice` value is asserted separately.
+ */
+const PY_NUMERIC_SEQ_SHA256 = '05f25a391e92a3f447e87f49747c9122941d04237529d289f8aa09c97be567a1';
+// The trace this pins is committed at e2e/reference/beatstreets-stage-trace.txt; regenerate with:
+//   tools/capture_beatstreets_frame.py --state play --skip-intro --frames-to-play 90 --seed 1 --trace-rng
+// Total draws the Python driver consumes by the freeze point (85 ctor + 99 intro
+// teletype). See 006 MEASUREMENT.md for the full per-frame draw table.
+const PY_DRAWS_AT_FREEZE = 184;
+const PY_INTRO_TELE_DRAWS = 99;
 
 /** A deterministic, idle fake controller (the player never acts during captures). */
 class IdleControls implements ControllerInput {
@@ -134,19 +151,59 @@ describe('audio-variant RNG parity', () => {
     expect(colourPicks).toHaveLength(0);
   });
 
-  it('G4: capture-schedule web draws now consume the full world-setup stream', () => {
-    // Replay the web capture schedule: single Game (not the double-built GameCanvas
-    // Host), jump to stage 1, idle player, advance to the freeze timer 345. Python
-    // consumes 184 draws by this point; the web consumes its 85 world-setup draws
-    // (up from 3 in iteration 004) — the residual 99 are the intro-text teletype +
-    // fade/combat sounds the Python driver runs, which the web's jumpToStage skips.
+  it('G4: full intro replay consumes the complete 184-draw stream Python does by freeze', () => {
+    // Replay the capture schedule the SAME way python does (NO jumpToStage): build the
+    // Game once (85 ctor draws, intro text active), play the intro story text out until
+    // it is fully revealed (99 teletype `randint(0,0)` draws), skip it with a button-0
+    // press (resets the timer to 0), then run the 255-frame fade window + 90 live
+    // frames (the idle player spawns no enemies, so python draws nothing further here).
     const game = seededGame(1);
-    game.jumpToStage(1);
-    for (let i = 0; i < 345 && game.timer < 345; i++) game.update();
+    const controls = game.player.controls as IdleControls;
     const trace = game.rngTrace as TracingRng;
-    const webTotal = trace.count;
-    expect(webTotal).toBe(85); // exactly the world-setup stream (deterministic, seed 1)
-    console.log(`sound-parity: web draws at freeze=${webTotal}, python=184`);
+
+    // Play the intro teletype to completion. The full story text is 122 chars and the
+    // web types 1 char every 6 frames (timer % 6 === 0), matching python's teletype.
+    let guard = 0;
+    while (game.displayedText.length < game.currentText.length && guard < 4000) {
+      game.update();
+      guard++;
+    }
+    expect(game.displayedText.length).toBe(game.currentText.length);
+    expect(guard).toBeLessThan(4000); // did terminate (732 frames for seed 1)
+
+    // Skip the intro: the button-0 press is consumed by the text-skip loop (not a
+    // player attack) and resets the timer to 0.
+    controls.press(0);
+    game.update();
+    expect(game.textActive).toBe(false);
+    expect(game.timer).toBe(0);
+
+    // Fade window + 90 live frames -> post-intro timer 345 (python's freeze point).
+    for (let i = 0; i < 345 && game.timer < 345; i++) game.update();
+    expect(game.timer).toBe(345);
+
+    const total = trace.count;
+    console.log(`sound-parity: web draws at freeze=${total}, python=${PY_DRAWS_AT_FREEZE}`);
+    expect(total).toBe(PY_DRAWS_AT_FREEZE); // 184
+
+    // The 99 post-ctor draws are all the intro teletype get_sound randint(0,0).
+    const postCtor = trace.draws.slice(85);
+    expect(postCtor).toHaveLength(PY_INTRO_TELE_DRAWS);
+    for (const d of postCtor) {
+      expect(d.kind).toBe('randint');
+      expect(d.args).toEqual([0, 0]); // teletype has a single variant -> randint(0,0)
+      expect(d.value).toBe(0);
+    }
+
+    // Bit-exactness of the full numeric sequence (84 ctor + 99 teletype randint draws)
+    // against the Python --trace-rng capture.
+    const numericSeq = trace.draws
+      .filter((d) => d.kind !== 'choice')
+      .map((d) => `${d.kind}(${(d.args as number[]).join(', ')})=${d.value}`)
+      .join('\n');
+    const seqHash = createHash('sha256').update(numericSeq + '\n').digest('hex');
+    console.log(`sound-parity: numeric draw sequence sha256=${seqHash}`);
+    expect(seqHash).toBe(PY_NUMERIC_SEQ_SHA256);
   });
 
   it('G4: live combat fires sound-variant draws (G1 mechanism in gameplay)', () => {

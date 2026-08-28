@@ -36,7 +36,7 @@ Three comparisons (all 800×480, per-pixel max-channel threshold 8/255):
 |---|---|---|
 | title (`title.html` e2e entry) | reconstructed pygame blit: raw `title0` on black + prompt glyphs (calibrated against the authentic cocoa capture) | **hard**: ≤1% pixels may differ |
 | intro text (`intro.html` e2e entry) | `beatstreets-gameplay.png` | informational (log) |
-| live stage 1 (`stage.html?seed=1&freeze=345` e2e entry) | `beatstreets-gameplay-stage.png` | informational (log) — see §4 for the round-004 path to a hard gate |
+| live stage 1 (`stage.html?seed=1&freeze=345` e2e entry) | `beatstreets-gameplay-stage.png` | **hard**: ≤1.5% pixels may differ (round 006) — see §4 |
 
 Artifacts land in `e2e/screenshots/fidelity-*.png` (+ a stage side-by-side).
 
@@ -95,31 +95,41 @@ values when a stage is lazily built. A draw-parity unit test
   (`frame, index, site, args, value`) without changing the default behaviour or the
   captured frame. At seed 1 the Python capture consumes **184** draws by its freeze
   point: 85 at Game construction (83 colour + 1 Stick durability + 1 stolen choice) +
-  99 `get_sound` draws from the intro-text teletype and fade/early combat.
+  **99 `get_sound` draws**, all from the intro-text teletype (`get_sound → randint(0,0)`
+  for the single-variant teletype sound). There are NO fade or live-combat draws in the
+  first 90 gameplay frames: the idle player never triggers scrolling, so no enemies
+  spawn and no combat sound fires (the 255-frame fade is a pure visual overlay, no RNG).
 - The engine exposes `opts.debugRng` → `game.rngTrace` (a `TracingRng` in
   `core/prng.ts`) that records every draw with its game frame for engine-level
   comparison against the Python trace.
 
-The entity STATES still do NOT bit-align between a web capture and a Python capture at
-the same seed, because the web consumes RNG draws in a DIFFERENT FRAME FLOW than the
-Python driver:
+### Intro/fade replay + bit-aligned stage (round 006)
 
-1. **Frame flow (the residual 99 draws).** Python runs the intro text (teletype draws)
-   + 255-frame fade + menu frames, consuming 184 draws by its freeze point. The web
-   `GameCanvas` Host uses `jumpToStage`, which skips the intro text + fade entirely, so
-   a single web `Game` reaches only its 85 world-setup draws. The Host additionally
-   constructs the `Game` twice (Host ctor + `startPlay`), re-seeding each. The missing
-   intro/fade sound draws leave the web's RNG stream at a different position than
-   Python's, so the enemy's per-frame state diverges.
+Round 006 removed `jumpToStage` from the stage capture path and made the web replay the
+REAL flow the Python driver runs, so the RNG streams now agree through the freeze point:
 
-These are frame-flow divergences (not PRNG correctness or missing sound-variant draws),
-so the stage gate stays **informational** — a hard gate over these unaligned states
-would be "picking a loose threshold to pass." The title gate (≤1%) and intro
-(informational) are unaffected. The stage test drives `stage.html?seed=1&freeze=345`
-mirroring the Python driver: title→controls→play, skip intro, wait out the 255-frame
-fade, then 90 live-gameplay frames; the entry FREEZES the rAF loop at game timer 345
-(`freezeAtTimer`) so the captured frame is frame-exact and the metric is stable
-(3.53% in 005, essentially unchanged from 3.50% — see MEASUREMENT.md).
+1. **One Game build.** `stage.html` no longer uses `StrictMode` (its dev double-mount
+   would rebuild the seeded Host), and `Host.startPlay()` reuses the ctor-created Game
+   for the very first play (dropping `jumpToStage`). The seeded capture therefore builds
+   exactly one `Game`; the ctor's fresh `text_active` intro state is what plays.
+2. **Intro text plays out.** The stage entry drives title→controls→play (button-0
+   presses) and lets the intro story text fully teletype (99 `randint(0,0)` draws). The
+   e2e waits for `[data-intro-complete]` — the exact moment the last teletype draw fires
+   (mirroring the driver's wait-for-full-display) — then presses Space to skip, resetting
+   the game timer to 0.
+3. **Fade window + live frames.** The web does not render the black fade overlay (at the
+   freeze point its alpha is already 0, and it consumes no RNG), but the game timer runs
+   through the 255-frame window + 90 live frames to timer 345, at which the entry freezes
+   the rAF loop (`freezeAtTimer=345`, guarded by `!textActive` so it never fires during
+   the intro). The idle player spawns no enemies, so the web and Python render the same
+   scene: an idle hero at (400,400) + HUD.
+
+The web's 184 draws bit-match Python's (verified in `src/game/sound-parity.test.ts`,
+including a SHA-256 over the numeric draw sequence), so the entity states are aligned
+and the stage metric dropped from 3.53% (round 005, where the 3rd Space press attacked an
+active `jumpToStage` player) to **0.79%** — idle player matching Python. The residual is
+HUD bar-clip / sprite-edge jitter, not a state divergence. The stage gate is now **HARD**
+(≤1.5%; see §2 and 006 MEASUREMENT.md for the threshold derivation).
 
 ## 5. Python → web data flow
 
