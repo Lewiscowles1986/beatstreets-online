@@ -218,6 +218,13 @@ export class WebGLRender {
     this.flushQuads();
     // 2. Composite the 2D overlay (text/primitives) as a full-screen textured quad.
     this.flushOverlay();
+    // 3. Reset the overlay for the next frame. The overlay persists across frames
+    //    (an offscreen canvas), and the play path never calls clear() — the title /
+    //    controls / game-over scenes do, but drawGame() does not — so debug circles
+    //    and any other overlay primitives ACCUMULATED into trails along actor paths
+    //    (the reported "yellow scribbles glued to the actors"). Clear after each
+    //    composite so the next frame's overlay starts transparent.
+    this.overlay2d.clearRect(0, 0, this.width, this.height);
   }
 
   /** Upload the overlay canvas as a texture and draw it as one full-screen quad. */

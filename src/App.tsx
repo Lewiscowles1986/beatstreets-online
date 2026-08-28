@@ -49,6 +49,7 @@ export default function App() {
   // `?renderer=2d` forces the Canvas-2D backend (used by the orientation e2e check to
   // compare the WebGL and 2D renderers against each other).
   const forceCanvas2D = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('renderer') === '2d';
+  const debugMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug');
 
   return (
     <div className="shell">
@@ -86,7 +87,10 @@ export default function App() {
 
       {playing && (
         <Suspense fallback={<div aria-busy="true" role="status">loading game…</div>}>
-          <GameCanvas stage={1} width={800} height={480} debug forceCanvas2D={forceCanvas2D} />
+          {/* debug circles are opt-in via ?debug — they rendered unconditionally and,
+              with the un-cleared WebGL overlay, accumulated into yellow trails along
+              every actor path (gauntlet 016 user report). */}
+          <GameCanvas stage={1} width={800} height={480} debug={debugMode} forceCanvas2D={forceCanvas2D} />
         </Suspense>
       )}
 
