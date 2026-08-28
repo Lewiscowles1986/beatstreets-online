@@ -229,17 +229,21 @@ first frame after the intro fade, game timer 255). The web stage entry mirrors i
 `?press=`/`?hold=` query params, so the web replays the IDENTICAL input schedule:
 
 - **Enemy attack on hero** — `--hold right:0:290` (the vax walks in and attacks; the
-  hero is in hit animation). Web: `stage.html?seed=1&freeze=545&hold=right:0:290`.
+  hero is in hit animation). Web: `stage.html?seed=1&freeze=544&hold=right:0:290` (the driver captures at live frame 289 — its loop breaks when gameplay_frames reaches the target, so the last live frame is N-1).
 - **Hero punch connecting** — `--hold right:0:180 --press 180:0` (the hero walks to the
-  enemy and punches). Web: `stage.html?seed=1&freeze=440&hold=right:0:180&press=180:0`.
+  enemy and punches). Web: `stage.html?seed=1&freeze=439&hold=right:0:180&press=180:0` (same N-1 rule).
 
-These gates are **INFORMATIONAL**, not HARD: the web engine's combat RNG is not
-bit-aligned with Python's (the web's enemy AI stops attacking after its first attack,
-so the simulations diverge a few frames into combat; measured diff ~8% vs 0.7% for the
-idle stage). The gate logs the diff and asserts only a gross structural-failure bound
-(the scene rendered, not blank/missing). See 008 MEASUREMENT.md for the trace-derived
-blocker. The value: the web provably replays the same deterministic schedule and renders
-a live combat scene; the diff is a documented residual, not a silent divergence.
+These gates are **INFORMATIONAL**, not HARD: the RNG streams agree exactly for the
+ctor 85-draw prefix and the first 190 randint draws (asserted by
+`src/game/action-parity.test.ts` against the committed python traces
+`e2e/reference/beatstreets-action-*-rng.txt`); they diverge at the enemy post-hit
+state branch — python draws the `randint(0,500)` approach back-off while the web
+enters a different post-hit state (`randint(0,1)` fall choice) — plus 2 freeze-boundary
+sound draws. Measured diff ~8-9% vs 0.73% for the idle stage. Round 009 fixed the
+underlying AI mechanics (scroll speed /WIDTH/4, boundary rect movement, approach
+back-off draw — verified line-level against beatstreets.py); round 010 scopes the
+post-hit state-branch fix, after which the parity test flips to a full-stream
+assertion and these gates promote to HARD.
 
 ## 5. Python → web data flow
 

@@ -270,8 +270,11 @@ class Host {
       update() {
         // Advance the action schedule to this frame's live-gameplay index BEFORE the
         // game reads controls. Live frame N = the frame where the post-intro game
-        // timer becomes 255+N (mirroring the python driver's gameplay_frames counter).
-        this.h.scheduled?.setLiveFrame(this.h.game.textActive ? -1 : this.h.game.timer - 255);
+        // timer becomes 255+N (mirroring the python driver's gameplay_frames counter,
+        // which is incremented AFTER the update that reaches timer 255+N — so the
+        // schedule is applied during the update that brings timer to 255+N, i.e.
+        // liveFrame = timer - 254 evaluated before that update).
+        this.h.scheduled?.setLiveFrame(this.h.game.textActive ? -1 : this.h.game.timer - 254);
         this.h.game.update();
         // Gather fresh inputs for the Konami detector + pause.
         const tokens = this.h.collectCheatTokens();

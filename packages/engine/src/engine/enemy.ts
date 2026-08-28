@@ -94,9 +94,22 @@ export abstract class Enemy extends Fighter {
 
   private updateApproach(): void {
     const player = this.player();
-    // Head towards the player at the configured approach distance.
-    this.target.x = player.vpos.x + this.approachPlayerDistance * sign(this.vpos.x - player.vpos.x);
-    this.target.y = player.vpos.y;
+    // If the player is attacking and we are quite close, chance (each frame) of backing
+    // up a little — mirrors Python's Enemy.update APPROACH_PLAYER branch, including its
+    // `randint(0, 500)` RNG draw (consumed every frame the player is attacking & close).
+    if (
+      player.attackTimer > 0 &&
+      Math.abs(this.vpos.y - player.vpos.y) < 20 &&
+      Math.abs(this.vpos.x - player.vpos.x) < 200 &&
+      this.game.rng.randint(0, 500) === 0
+    ) {
+      this.target.x = this.vpos.x - this.facingX * 90;
+      this.state = EnemyState.GO_TO_POS;
+    } else {
+      // Head towards the player at the configured approach distance.
+      this.target.x = player.vpos.x + this.approachPlayerDistance * sign(this.vpos.x - player.vpos.x);
+      this.target.y = player.vpos.y;
+    }
   }
 
   private updateGoToWeapon(): void {

@@ -386,11 +386,19 @@ export class Game implements GameContext {
     if (this.scrolling) {
       if (this.scrollOffset.x < this.maxScrollOffsetX) {
         const diff = this.maxScrollOffsetX - this.scrollOffset.x;
-        let speed = this.player.vpos.x - this.scrollOffset.x;
+        // Python: scroll_speed = player.x / (WIDTH/4) where player.x is the screen x
+        // (vpos.x - scroll_offset.x). The web must divide by WIDTH/4 too — otherwise it
+        // scrolls ~200x faster and the world (and boundary) jump to max immediately.
+        let speed = (this.player.vpos.x - this.scrollOffset.x) / (this.config.WIDTH / 4);
         if (speed < 0) speed = 0;
         speed = Math.min(diff, speed);
         this.scrollOffset.x += speed;
+        // Python's boundary is a Rect: moving boundary.left moves the whole rectangle,
+        // so boundary.right = scroll_offset.x + (WIDTH-1). The web must mirror this —
+        // otherwise the enemy's target clamps at the fixed WIDTH-1 and the enemy stops
+        // following the player once the world scrolls past it (re-engagement divergence).
         this.boundary.left = this.scrollOffset.x;
+        this.boundary.right = this.scrollOffset.x + (this.config.WIDTH - 1);
       } else {
         this.scrolling = false;
       }
