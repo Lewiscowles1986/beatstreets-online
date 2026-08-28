@@ -12,3 +12,7 @@ packages/engine/dist/
 # volatile fidelity run artifacts (regenerated on every gate run)
 e2e/screenshots/fidelity-metrics.json
 e2e/screenshots/fidelity-action-metrics.json
+e2e/screenshots/fidelity-weapon-metrics.json
+# volatile run artifacts: the captured web frames (the python references in
+# e2e/reference/ ARE committed)
+e2e/screenshots/fidelity-weapon-*.png
