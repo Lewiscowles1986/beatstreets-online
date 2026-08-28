@@ -63,6 +63,11 @@ const autoSkipAt = params.get('skip') ? 1 : undefined;
 // Debug overlay passthrough (scroll position readout) for manual alignment probes.
 const debug = params.get('debug') === '1';
 
+// Per-frame state trace (?trace=1): window.__BS_TRACE gets one row per post-skip
+// update — {i, t, h: [x, y, sprite], e: [[sprite, x, y], ...]} — the exact rows the
+// headless action-parity replay mirrors, for the browser-vs-headless diff (023).
+const trace = params.get('trace') === '1';
+
 createRoot(document.getElementById('root')!).render(
   <GameCanvas
     width={800}
@@ -75,5 +80,6 @@ createRoot(document.getElementById('root')!).render(
     place={place}
     autoSkipAt={autoSkipAt}
     debug={debug}
+    trace={trace}
   />,
 );

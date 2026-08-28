@@ -180,3 +180,60 @@ describe('weapon schedule RNG parity (stage jump + stick)', () => {
     expect(web.slice(0, py.length)).toEqual(py);
   });
 });
+
+/** Per-update state rows mirroring the browser ?trace=1 rows exactly
+ *  ({i, t, h: [x, y, sprite], e: [[sprite, x, y], ...]}). With BS_DUMP_TRACE set,
+ *  prints the rows (TRACE_ROWS ...) for the browser-vs-headless diff (gauntlet 023). */
+function replayWeaponScheduleRows(): { i: number; t: number; h: [number, number, string]; e: [string, number, number][] }[] {
+  const game = new Game(loadGameSpec(), new ScheduledControls(4, null, -1), { rng: cpythonRng(1) });
+  const controls = game.player.controls as ScheduledControls;
+  const rows: { i: number; t: number; h: [number, number, string]; e: [string, number, number][] }[] = [];
+  let guard = 0;
+  while (game.displayedText.length < game.currentText.length && guard < 4000) {
+    game.update();
+    guard++;
+  }
+  const pushRow = () => {
+    rows.push({
+      i: rows.length,
+      t: game.timer,
+      h: [Math.round(game.player.vpos.x), Math.round(game.player.vpos.y), game.player.determineSprite()],
+      e: game.enemies.map((en) => [en.determineSprite(), Math.round(en.vpos.x), Math.round(en.vpos.y)] as [string, number, number]),
+    });
+  };
+  // Skip update: the browser presses 0 inside the update where the text completes;
+  // python's --stage hook fires after the SECOND post-skip update (023 trace proof),
+  // so the jump applies at the end of the second loop update and the row is pushed
+  // after the jump (matching the browser's in-update row push).
+  let postSkip = 0;
+  let jumped = false;
+  controls.press(0);
+  game.update();
+  postSkip = 1;
+  pushRow();
+  for (let i = 0; i < WEAPON_FREEZE && game.timer < WEAPON_FREEZE; i++) {
+    controls.setLiveFrame(game.textActive ? -1 : game.timer - 254);
+    if (WEAPON_PRESSES.has(game.timer - 254)) controls.press(0);
+    game.update();
+    if (!game.textActive) postSkip += 1;
+    if (!jumped && postSkip >= 2) {
+      game.jumpToStage(5, { resetTimer: false });
+      game.player.vpos.x = 700;
+      game.player.vpos.y = 420;
+      jumped = true;
+    }
+    pushRow();
+  }
+  return rows;
+}
+
+describe('weapon schedule state trace (023 browser-vs-headless diff)', () => {
+  it('replays the schedule and optionally dumps the state rows', () => {
+    const rows = replayWeaponScheduleRows();
+    expect(rows.length).toBeGreaterThan(600);
+    if (process.env.BS_DUMP_TRACE) {
+      // eslint-disable-next-line no-console
+      console.log('TRACE_ROWS', JSON.stringify(rows));
+    }
+  });
+});

@@ -159,7 +159,12 @@ export class WebGLRender {
     if (typeof anchor[1] === 'number') dy -= anchor[1];
     else if (anchor[1] === 'center') dy -= h / 2;
     else if (anchor[1] === 'bottom') dy -= h;
-    this.quads.push({ tex, x: dx, y: dy, w, h, name });
+    // pygame blits truncate the destination to int (toward zero) — the 2D renderer
+    // already mirrors this; the WebGL quads must too, otherwise every scrolled sprite
+    // renders at a fractional position (linear-filtered) and the textured background
+    // shifts ~1px vs the python capture (gauntlet 023: the weapon gates' residual
+    // pixel diff — the scroll offset is fractional most frames).
+    this.quads.push({ tex, x: Math.trunc(dx), y: Math.trunc(dy), w, h, name });
   }
 
   /** Blit only the top-left `srcW`×`srcH` region of a sprite (clipped bar fill). */

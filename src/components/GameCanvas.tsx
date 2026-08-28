@@ -47,6 +47,9 @@ export interface GameCanvasProps {
    * the hero placement through the fade) ends ~380px short — the reported weapon-gate
    * divergence. */
   autoSkipAt?: number;
+  /** Record one state row per post-skip update into window.__BS_TRACE (the
+   * browser-vs-headless replay diff; gauntlet 023). Rows: {i, t, h, e}. */
+  trace?: boolean;
 }
 
 /**
@@ -55,12 +58,12 @@ export interface GameCanvasProps {
  * WebGL backend (falling back to Canvas 2D when WebGL is unavailable). This is the
  * real app surface the shell mounts. Sprites are preloaded first.
  */
-export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl, seed, freezeAtTimer, pressSchedule, holdSchedule, jumpStage, place, autoSkipAt }: GameCanvasProps) {
+export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl, seed, freezeAtTimer, pressSchedule, holdSchedule, jumpStage, place, autoSkipAt, trace }: GameCanvasProps) {
   const { ready } = useSpriteAssets();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<Host | null>(null);
   if (hostRef.current === null) {
-    hostRef.current = new Host(width, height, debug, forceCanvas2D, wsUrl, seed, pressSchedule, holdSchedule, jumpStage, place, autoSkipAt);
+    hostRef.current = new Host(width, height, debug, forceCanvas2D, wsUrl, seed, pressSchedule, holdSchedule, jumpStage, place, autoSkipAt, trace);
   }
   const [ov, setOv] = useState(() => ({
     scene: 'title' as string,
@@ -235,6 +238,15 @@ class Host {
    *  later replay — game-over -> title -> play — builds a fresh one). */
   private playedOnce = false;
 
+  /** Per-update state rows for the browser-vs-headless replay diff (?trace=1):
+   *  pushed after every post-skip play update, mirrored by the headless test. */
+  private traceRows: { i: number; t: number; h: [number, number, string]; e: [string, number, number][] }[] = [];
+  private traceSkipSeen = false;
+  private traceEnabled = false;
+  /** Post-skip play updates counted so far — the stage jump fires after the second
+   *  one (python driver hook parity, gauntlet 023). */
+  private postSkipUpdates = 0;
+
   /** Subscribe to scene transitions so React can render overlays. */
   setOnSceneChange(cb: (() => void) | null): void {
     this.onSceneChange = cb;
@@ -286,9 +298,14 @@ class Host {
     jumpStage?: number,
     place?: { x: number; y: number },
     private autoSkipAt?: number,
+    trace?: boolean,
   ) {
     if (jumpStage !== undefined) {
       this.pendingStageJump = { stage: jumpStage, place };
+    }
+    this.traceEnabled = trace === true;
+    if (this.traceEnabled) {
+      (window as unknown as { __BS_TRACE: Host['traceRows'] }).__BS_TRACE = this.traceRows;
     }
     this.width = width;
     this.height = height;
@@ -362,7 +379,23 @@ class Host {
         // liveFrame = timer - 254 evaluated before that update).
         this.h.scheduled?.setLiveFrame(this.h.game.textActive ? -1 : this.h.game.timer - 254);
         this.h.game.update();
+        if (!this.h.game.textActive) this.h.postSkipUpdates += 1;
         this.h.applyPendingStageJump();
+        // ?trace=1: record one state row per post-skip update (browser-vs-headless
+        // replay diff, gauntlet 023). The row shape mirrors the headless test's rows
+        // exactly: update index since the skip, timer, hero [x, y, sprite], enemies.
+        if (this.h.traceEnabled) {
+          const tr = this.h.game;
+          if (!tr.textActive && !this.h.traceSkipSeen) this.h.traceSkipSeen = true;
+          if (this.h.traceSkipSeen && !tr.textActive) {
+            this.h.traceRows.push({
+              i: this.h.traceRows.length,
+              t: tr.timer,
+              h: [Math.round(tr.player.vpos.x), Math.round(tr.player.vpos.y), tr.player.determineSprite()],
+              e: tr.enemies.map((en) => [en.determineSprite(), Math.round(en.vpos.x), Math.round(en.vpos.y)] as [string, number, number]),
+            });
+          }
+        }
         // Gather fresh inputs for the Konami detector + pause.
         const tokens = this.h.collectCheatTokens();
         if (this.h.game.checkWon() || this.h.game.player.lives <= 0) {
@@ -495,14 +528,15 @@ class Host {
   }
 
   /** Build a Game, seeding its RNG when a seed is configured (deterministic replays). */
-  /** Apply the pending harness stage jump at the end of the FIRST update after the
-   *  intro text ends — the exact counterpart of the driver's post-update --stage
-   *  hook and the headless replay's jump (gauntlet 014: the +1-update delay here
-   *  shifted the browser fight timeline relative to the verified headless stream),
-   *  timer untouched, then place the player if requested. */
+  /** Apply the pending harness stage jump at the end of the SECOND update after the
+   *  intro text ends — the exact counterpart of the python driver's --stage hook:
+   *  `self._frame > skip_frame[0]` runs after frame skip+1's update, i.e. after the
+   *  SECOND post-skip update (gauntlet 023 trace proof: python's first enemy row
+   *  appears at post-skip timer 2, the web's at timer 0 — a one-frame-early jump
+   *  that shifted the whole fight choreography by one frame), timer untouched. */
   private applyPendingStageJump(): void {
     const p = this.pendingStageJump;
-    if (!p || this.game.textActive) return;
+    if (!p || this.game.textActive || this.postSkipUpdates < 2) return;
     this.game.jumpToStage(p.stage, { resetTimer: false });
     if (p.place) this.game.player.vpos = new Vec2(p.place.x, p.place.y);
     this.pendingStageJump = null;
