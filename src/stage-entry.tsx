@@ -43,6 +43,16 @@ const holdSchedule = (params.get('hold') ?? '')
     return { dir: dir as 'left' | 'right' | 'up' | 'down', from: Number(from), to: Number(to) };
   });
 
+// Test-harness stage jump + placement, mirroring the python capture driver's
+// --stage N / --place X:Y: jump to stage N right after the intro skip (without
+// resetting the game timer) and set the player's vpos. ?stage=5&place=700:420
+// starts the stage-5 hoodie fight at punch range for the weapon-mechanics gates.
+const jumpStage = params.get('stage') ? Number(params.get('stage')) : undefined;
+const placeParam = params.get('place');
+const place = placeParam
+  ? (([x, y]) => ({ x: Number(x), y: Number(y) }))(placeParam.split(':'))
+  : undefined;
+
 createRoot(document.getElementById('root')!).render(
   <GameCanvas
     width={800}
@@ -51,5 +61,7 @@ createRoot(document.getElementById('root')!).render(
     freezeAtTimer={freeze}
     pressSchedule={pressSchedule}
     holdSchedule={holdSchedule}
+    jumpStage={jumpStage}
+    place={place}
   />,
 );

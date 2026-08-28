@@ -48,9 +48,12 @@ describe('math primitives', () => {
     expect(remapClamp(-10, 0, 100, 0, 1)).toBe(0); // under -> lower
   });
 
-  it('sign is never 0', () => {
+  it('sign matches python (1, 0 or -1 — zero returns 0)', () => {
+    // Python sign() returns 0 for 0 (beatstreets.py line 152). The zero case is
+    // bit-parity-critical: the enemy flank target y == player y fires a choice draw
+    // only when sign(0) === 0 (gauntlet 012 weapon schedule found this).
     expect(sign(-3)).toBe(-1);
-    expect(sign(0)).toBe(1);
+    expect(sign(0)).toBe(0);
     expect(sign(5)).toBe(1);
   });
 

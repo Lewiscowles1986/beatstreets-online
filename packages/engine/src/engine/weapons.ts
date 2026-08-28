@@ -83,6 +83,12 @@ export abstract class Weapon implements WeaponLike {
     return false;
   }
 
+  /** Python get_draw_order_offset: weapons sort into the same list as fighters
+   *  (vpos.y + offset); base weapons 0, subclasses override. */
+  getDrawOrderOffset(): number {
+    return 0;
+  }
+
   abstract throw(dirX: number, thrower: unknown): void;
 }
 
@@ -116,8 +122,10 @@ export class Barrel extends Weapon {
           }
         }
       }
+      // Python increments the roll frame ONLY while rolling (it drives the
+      // (frame // 14) % 4 roll animation); a resting barrel's phase must not advance.
+      this.frame += 1;
     }
-    this.frame += 1;
   }
 
   throw(dirX: number, thrower: unknown): void {
@@ -130,6 +138,10 @@ export class Barrel extends Weapon {
 
   override can_be_picked_up(): boolean {
     return super.can_be_picked_up() && this.vel.length() < 1;
+  }
+
+  override getDrawOrderOffset(): number {
+    return 2;
   }
 
   /** A representative sprite name for rendering. */
@@ -157,6 +169,12 @@ export class BreakableWeapon extends Weapon {
 
   override is_broken(): boolean {
     return this.breakCounter <= 0;
+  }
+
+  override getDrawOrderOffset(): number {
+    // Python: -50 — a stick/chain on the ground draws BEHIND a character standing
+    // on it (see BreakableWeapon.get_draw_order_offset).
+    return -50;
   }
 
   throw(dirX: number, _thrower: unknown): void {

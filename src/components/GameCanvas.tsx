@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Game, Scene, SceneManager, KonamiDetector, Barrel, Stick, Chain, HealthPowerup, ExtraLifePowerup, WebSocketController, seededRng } from '@beatstreets/engine';
+import { Game, Scene, SceneManager, KonamiDetector, Barrel, Stick, Chain, Weapon, Fighter, Vec2, HealthPowerup, ExtraLifePowerup, WebSocketController, seededRng } from '@beatstreets/engine';
 import { loadGameSpec } from '../game/data';
 import { CanvasRender, Anchor } from '../game/render/canvas-render';
 import { WebGLRender } from '../game/render/webgl-render';
@@ -34,6 +34,11 @@ export interface GameCanvasProps {
   /** Deterministic hold schedule (mirrors the driver's --hold): hold a direction over
    * a live-frame range. */
   holdSchedule?: { dir: 'left' | 'right' | 'up' | 'down'; from: number; to: number }[];
+  /** Test-harness stage jump (mirrors the python capture driver's --stage): jump to
+   * this 1-based stage right after the intro skip, without resetting the game timer. */
+  jumpStage?: number;
+  /** Test-harness player placement (mirrors --place): player vpos after the jump. */
+  place?: { x: number; y: number };
 }
 
 /**
@@ -42,12 +47,12 @@ export interface GameCanvasProps {
  * WebGL backend (falling back to Canvas 2D when WebGL is unavailable). This is the
  * real app surface the shell mounts. Sprites are preloaded first.
  */
-export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl, seed, freezeAtTimer, pressSchedule, holdSchedule }: GameCanvasProps) {
+export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl, seed, freezeAtTimer, pressSchedule, holdSchedule, jumpStage, place }: GameCanvasProps) {
   const { ready } = useSpriteAssets();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<Host | null>(null);
   if (hostRef.current === null) {
-    hostRef.current = new Host(width, height, debug, forceCanvas2D, wsUrl, seed, pressSchedule, holdSchedule);
+    hostRef.current = new Host(width, height, debug, forceCanvas2D, wsUrl, seed, pressSchedule, holdSchedule, jumpStage, place);
   }
   const [ov, setOv] = useState(() => ({
     scene: 'title' as string,
@@ -173,6 +178,11 @@ class Host {
   private onSceneChange: (() => void) | null = null;
   /** Schedule-aware controls wrapper (present only when an action schedule is set). */
   private scheduled: ScheduledControls | null = null;
+  /** Test-harness stage jump (mirrors the driver's --stage hook): applied one full
+   *  update after the intro text ends, without resetting the game timer — the exact
+   *  counterpart of the driver's post-update jump so both sides see identical state
+   *  (the stage enemies update during the fade, so the jump frame matters). */
+  private pendingStageJump: { stage: number; place?: { x: number; y: number }; postFlipUpdates: number } | null = null;
 
   /** True once the player has entered a stage; the ctor Game is only reused for the
    *  very first play so the seeded capture path builds the Game exactly once (any
@@ -223,7 +233,12 @@ class Host {
     seed?: number,
     pressSchedule?: { frame: number; button: number }[],
     holdSchedule?: { dir: 'left' | 'right' | 'up' | 'down'; from: number; to: number }[],
+    jumpStage?: number,
+    place?: { x: number; y: number },
   ) {
+    if (jumpStage !== undefined) {
+      this.pendingStageJump = { stage: jumpStage, place, postFlipUpdates: 0 };
+    }
     this.width = width;
     this.height = height;
     this.debug = debug;
@@ -276,6 +291,7 @@ class Host {
         // liveFrame = timer - 254 evaluated before that update).
         this.h.scheduled?.setLiveFrame(this.h.game.textActive ? -1 : this.h.game.timer - 254);
         this.h.game.update();
+        this.h.applyPendingStageJump();
         // Gather fresh inputs for the Konami detector + pause.
         const tokens = this.h.collectCheatTokens();
         if (this.h.game.checkWon() || this.h.game.player.lives <= 0) {
@@ -400,6 +416,21 @@ class Host {
   }
 
   /** Build a Game, seeding its RNG when a seed is configured (deterministic replays). */
+  /** Apply the pending harness stage jump: one full update after the intro text
+   *  ends (the driver's hook fires post-update on the frame after the skip), timer
+   *  untouched, then place the player if requested. */
+  private applyPendingStageJump(): void {
+    const p = this.pendingStageJump;
+    if (!p || this.game.textActive) return;
+    if (p.postFlipUpdates >= 1) {
+      this.game.jumpToStage(p.stage, { resetTimer: false });
+      if (p.place) this.game.player.vpos = new Vec2(p.place.x, p.place.y);
+      this.pendingStageJump = null;
+    } else {
+      p.postFlipUpdates += 1;
+    }
+  }
+
   private newGame(): Game {
     return new Game(loadGameSpec(), this.controls, {
       rng: this.seed !== undefined ? seededRng(this.seed) : undefined,
@@ -490,17 +521,21 @@ class Host {
     // Python sorts by `vpos.y + get_draw_order_offset()` (Player=+1, so the player
     // draws ON TOP of an enemy at the same Y). The offset must be included — without
     // it, ties keep the player first and the enemy renders over the hero.
-    const objs = [this.game.player, ...this.game.enemies].sort(
-      (a, b) => a.vpos.y + a.getDrawOrderOffset() - (b.vpos.y + b.getDrawOrderOffset()),
-    );
+    // Python draws fighters AND weapons in one list sorted by
+    // `vpos.y + get_draw_order_offset()` (Player=+1, base weapon 0, barrel +2,
+    // breakable weapon -50) — a weapon behind a fighter (lower y) must render
+    // behind it, so weapons cannot be a separate pass.
+    const objs = (
+      [this.game.player, ...this.game.enemies, ...(this.game.weapons as unknown as Weapon[])] as (Fighter | Weapon)[]
+    ).sort((a, b) => a.vpos.y + a.getDrawOrderOffset() - (b.vpos.y + b.getDrawOrderOffset()));
     for (const o of objs) {
+      if (o instanceof Weapon) {
+        const sprite = weaponSprite(o);
+        if (sprite) render.blitSprite(sprite, o.vpos.x - scroll, o.vpos.y, weaponAnchor(o));
+        continue;
+      }
       render.blitSprite(o.determineSprite(), o.vpos.x - scroll, o.vpos.y - o.heightAboveGround, ['center', o.anchorY]);
       if (this.debug) render.drawCircle(o.vpos.x - scroll, o.vpos.y, 5, '#ff0');
-    }
-    // Weapons (barrels / stick / chain).
-    for (const w of this.game.weapons) {
-      const sprite = weaponSprite(w);
-      if (sprite) render.blitSprite(sprite, w.vpos.x - scroll, w.vpos.y, weaponAnchor(w));
     }
     // Powerups.
     for (const p of this.game.powerups) {

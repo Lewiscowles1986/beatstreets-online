@@ -31,6 +31,10 @@ export interface WeaponLike {
   dropped(): void;
   can_be_picked_up(): boolean;
   is_broken(): boolean;
+  /** Python end_pickup_frame: the pickup animation's last sprite frame. */
+  endPickupFrame: number;
+  /** Python get_draw_order_offset: draw sort nuance (base 0, barrel +2, breakable -50). */
+  getDrawOrderOffset(): number;
   /** A weapon may break after being used to hit. */
   used?(): void;
 }
@@ -414,7 +418,9 @@ export abstract class Fighter {
       frame = this.hitFrame;
     } else if (this.pickupAnimation) {
       animType = `pickup_${this.pickupAnimation}`;
-      frame = 0;
+      // Python animates the pickup: frame = min(frame // 12, weapon.end_pickup_frame)
+      // (barrel end_pickup_frame=2, stick/chain=1) — not a fixed frame 0.
+      frame = Math.min(Math.floor(this.frame / 12), this.weapon?.endPickupFrame ?? 0);
     } else if (this.attackTimer > 0 && this.lastAttack) {
       animType = this.lastAttack.sprite ?? 'attack';
       frame = this.lastAttack.frameAt(this.frame);
