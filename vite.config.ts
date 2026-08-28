@@ -30,6 +30,10 @@ export default defineConfig({
         intro: 'intro.html',
         // Dedicated e2e entry for the seeded stage-1 live-gameplay fidelity check (GOAL G2/G3).
         stage: 'stage.html',
+        // Dedicated e2e entry for the controls-screen fidelity check (GOAL G1).
+        controls: 'controls.html',
+        // Dedicated e2e entry for the game-over fidelity check (GOAL G2).
+        gameover: 'gameover.html',
       },
       output: {
         // Split the heavy, rarely-changing dependencies into their own chunks so the
