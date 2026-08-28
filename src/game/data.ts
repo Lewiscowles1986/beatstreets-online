@@ -5,6 +5,12 @@ import attacksJson from '../assets/data/attacks.json';
 import stagesJson from '../assets/data/stages.json';
 import storyJson from '../assets/data/story.json';
 
+/** A spec source handed TO the shell: invoked when a game starts, not at import time,
+ *  so the shell never hard-wires where the stages/config JSON comes from (the bundled
+ *  loader is just the default). After the first call the shell keeps the loaded spec
+ *  and reuses it for every later game build ("the state is set going forward"). */
+export type SpecLoader = () => GameSpec;
+
 /** Whether the static data has been loaded and validated once. */
 let spec: GameSpec | null = null;
 

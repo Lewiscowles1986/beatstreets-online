@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Game, Scene, SceneManager, KonamiDetector, Barrel, Stick, Chain, Weapon, Fighter, Vec2, HealthPowerup, ExtraLifePowerup, WebSocketController, seededRng } from '@beatstreets/engine';
-import { loadGameSpec } from '../game/data';
+import { Game, GameSpec, Scene, SceneManager, KonamiDetector, Barrel, Stick, Chain, Weapon, Fighter, Vec2, HealthPowerup, ExtraLifePowerup, WebSocketController, seededRng } from '@beatstreets/engine';
+import { loadGameSpec, SpecLoader } from '../game/data';
 import { CanvasRender, Anchor } from '../game/render/canvas-render';
 import { WebGLRender } from '../game/render/webgl-render';
 import { useSpriteAssets } from './useSpriteAssets';
@@ -18,6 +18,10 @@ export interface GameCanvasProps {
   width?: number;
   height?: number;
   debug?: boolean;
+  /** The spec source for the game: invoked when a game STARTS (the first Game build),
+   *  not at import time, and the loaded spec is kept for every later build (replays,
+   *  game-over -> title -> play). Defaults to the bundled JSON loader. */
+  loadSpec?: SpecLoader;
   /** Force the 2D renderer even when WebGL is available. */
   forceCanvas2D?: boolean;
   /** Optional WebSocket URL to drive the game remotely (WebSocketController). */
@@ -58,12 +62,12 @@ export interface GameCanvasProps {
  * WebGL backend (falling back to Canvas 2D when WebGL is unavailable). This is the
  * real app surface the shell mounts. Sprites are preloaded first.
  */
-export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl, seed, freezeAtTimer, pressSchedule, holdSchedule, jumpStage, place, autoSkipAt, trace }: GameCanvasProps) {
+export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl, seed, freezeAtTimer, pressSchedule, holdSchedule, jumpStage, place, autoSkipAt, trace, loadSpec }: GameCanvasProps) {
   const { ready } = useSpriteAssets();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<Host | null>(null);
   if (hostRef.current === null) {
-    hostRef.current = new Host(width, height, debug, forceCanvas2D, wsUrl, seed, pressSchedule, holdSchedule, jumpStage, place, autoSkipAt, trace);
+    hostRef.current = new Host(width, height, debug, forceCanvas2D, wsUrl, seed, pressSchedule, holdSchedule, jumpStage, place, autoSkipAt, trace, loadSpec);
   }
   const [ov, setOv] = useState(() => ({
     scene: 'title' as string,
@@ -299,6 +303,7 @@ class Host {
     place?: { x: number; y: number },
     private autoSkipAt?: number,
     trace?: boolean,
+    private loadSpec?: SpecLoader,
   ) {
     if (jumpStage !== undefined) {
       this.pendingStageJump = { stage: jumpStage, place };
@@ -542,8 +547,15 @@ class Host {
     this.pendingStageJump = null;
   }
 
+  /** The loaded spec (the shell's game state going forward): the loader runs ONCE at
+   *  the first game start, then every later build (replays) reuses this spec. */
+  private spec: GameSpec | null = null;
+
   private newGame(): Game {
-    return new Game(loadGameSpec(), this.controls, {
+    // Load lazily at game start via the injected loader (default: the bundled JSON);
+    // the loaded spec is kept for the session — later games never re-invoke it.
+    if (!this.spec) this.spec = (this.loadSpec ?? loadGameSpec)();
+    return new Game(this.spec, this.controls, {
       rng: this.seed !== undefined ? seededRng(this.seed) : undefined,
     });
   }
