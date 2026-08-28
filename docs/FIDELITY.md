@@ -3,6 +3,43 @@
 The web port is verified against **authentic pygame frames**, not eyeballing.
 Everything below lives in the `beatstreets-web` repo unless paths say otherwise.
 
+## 0. Maintenance loop — one command
+
+After editing the Python game (or the web), regenerate every reference and re-run
+every gate with a single command:
+
+```bash
+cd beatstreets-web
+npm run fidelity          # or, from the parent repo root: make fidelity
+```
+
+`npm run fidelity` (scripts/fidelity.mjs) does, in order:
+
+1. **Regenerates ALL python references** via the capture driver
+   (tools/capture_beatstreets_frame.py) into a temp dir — title, intro, stage,
+   controls, game-over win/lose, and the gameplay-action frames.
+2. **md5-compares** each against `e2e/reference/`. Identical references are kept
+   silently; **changed ones are replaced and the old→new md5 is printed**, so a
+   maintainer sees exactly which references moved after a python edit. Commit the
+   changed references together with the web change that mirrors them.
+3. **Builds** the web bundle and runs the fidelity + orientation playwright gates
+   (chromium, workers=1).
+4. **Prints the final metric table** — the specs write
+   `e2e/screenshots/fidelity-metrics.json` and `fidelity-action-metrics.json`, which
+   the script cats.
+
+The venv python path is `FIDELITY_PYTHON` (env override) or `../../.venv/bin/python`
+relative to this repo.
+
+### CI behaviour
+
+`.github/workflows/fidelity.yml` runs the same fidelity + orientation gates on every
+push/PR (setup-node 20 + npm cache, `npm ci`, `npx playwright install --with-deps
+chromium`, `npm run build`, then the gates with workers=1). A fidelity regression
+fails loudly; the fidelity screenshots and playwright report are uploaded as artifacts
+on failure. The workflow is committed but **not verified in CI** (no GitHub runner in
+this sandbox) — it is validated locally by running the same commands.
+
 ## 1. Regenerate the Python reference frames
 
 The capture driver (parent repo) boots the modified game headless, drives it
@@ -183,6 +220,26 @@ causes, both fixed:
 The aligned metric is now **0.00%** (0/384000), promoted to **HARD ≤2%** (the GOAL's
 "promote to hard only if honestly tight (≤2%)" rule; ~2 orders of magnitude below a
 missing/wrong-text structural failure ≈ 7.8%).
+
+### Gameplay-action frames (round 008)
+
+The driver gained a deterministic action schedule — `--press FRAME:BUTTON` (repeatable)
+and `--hold DIR:FROM:TO` (repeatable), indexed in live-gameplay space (frame 0 = the
+first frame after the intro fade, game timer 255). The web stage entry mirrors it via
+`?press=`/`?hold=` query params, so the web replays the IDENTICAL input schedule:
+
+- **Enemy attack on hero** — `--hold right:0:290` (the vax walks in and attacks; the
+  hero is in hit animation). Web: `stage.html?seed=1&freeze=545&hold=right:0:290`.
+- **Hero punch connecting** — `--hold right:0:180 --press 180:0` (the hero walks to the
+  enemy and punches). Web: `stage.html?seed=1&freeze=440&hold=right:0:180&press=180:0`.
+
+These gates are **INFORMATIONAL**, not HARD: the web engine's combat RNG is not
+bit-aligned with Python's (the web's enemy AI stops attacking after its first attack,
+so the simulations diverge a few frames into combat; measured diff ~8% vs 0.7% for the
+idle stage). The gate logs the diff and asserts only a gross structural-failure bound
+(the scene rendered, not blank/missing). See 008 MEASUREMENT.md for the trace-derived
+blocker. The value: the web provably replays the same deterministic schedule and renders
+a live combat scene; the diff is a documented residual, not a silent divergence.
 
 ## 5. Python → web data flow
 

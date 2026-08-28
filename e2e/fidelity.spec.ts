@@ -15,13 +15,13 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
  *  - e2e/reference/beatstreets-gameplay.png        Python stage-1 intro-text frame
  *  - e2e/reference/beatstreets-gameplay-stage.png  Python stage-1 live gameplay frame
  *
- * Title per-region compensation: the authentic pygame cocoa capture flattens the
- * logo's semi-transparent glow to opaque (a capture-side artifact), so the web's
- * correct source-over compositing differs from it in the logo region. The title diff
- * therefore reconstructs the true pygame blit — the raw `title0` asset composited
- * onto black, with the prompt glyph region taken from the cocoa capture (which is
- * correct there) — and compares the web against that. This is a documented per-region
- * compensation, not a loosened threshold.
+ * Title per-region compensation: originally built for the 001-era cocoa capture,
+ * which flattened the logo's semi-transparent glow to opaque (a capture-side
+ * artifact). The 008 reference swap replaced it with the driver's SDL-dummy capture,
+ * which does NOT flatten the glow — it sits closer to the raw `title0` blit — so the
+ * compensation is now nearly empty (title metric 0.01%, 24/384000 px). It is kept
+ * because a handful of glow pixels still differ without it; if a future reference
+ * makes the compensation region fully empty, the reconstruction can be dropped.
  *
  * Diff metric: two PNGs are drawn into an 800x480 offscreen canvas in the browser and
  * compared per-pixel. A pixel "differs" when any RGB channel differs by more than
@@ -57,6 +57,33 @@ const WIDTH = 800;
 const HEIGHT = 480;
 const CHANNEL_THRESHOLD = 8;
 const MAX_DIFF_FRACTION = 0.01; // target <=1% at threshold 8 (title)
+
+/**
+ * Fidelity metric table, written to e2e/screenshots/fidelity-metrics.json by
+ * afterAll so the `npm run fidelity` script can cat it as the final report. Each
+ * gate records its measured diff fraction and its HARD threshold.
+ */
+const METRICS: Record<string, { fraction: number; threshold: number }> = {};
+const METRICS_OUT = resolve(OUT_DIR, 'fidelity-metrics.json');
+
+test.afterAll(() => {
+  mkdirSync(OUT_DIR, { recursive: true });
+  writeFileSync(
+    METRICS_OUT,
+    JSON.stringify(
+      {
+        generated_at: new Date().toISOString(),
+        width: WIDTH,
+        height: HEIGHT,
+        channel_threshold: CHANNEL_THRESHOLD,
+        gates: METRICS,
+      },
+      null,
+      2,
+    ),
+  );
+  console.log(`fidelity metrics written to ${METRICS_OUT}`);
+});
 
 /**
  * HARD gate for the stage-1 live-gameplay frame (GOAL G3). Threshold derivation
@@ -266,6 +293,7 @@ test('title screen matches the authentic Python capture at 800x480', async ({ pa
   // Per-region compensation: reconstruct the true pygame blit (title0 onto black +
   // prompt) so the cocoa capture's alpha-flattened glow doesn't count as a web diff.
   const diff = await compensatedTitleDiff(page, shot, cocoaRef, title0);
+  METRICS['title'] = { fraction: diff.fraction, threshold: MAX_DIFF_FRACTION };
   console.log(
     `fidelity title diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (${diff.diffPixels}/${diff.total}, threshold ${CHANNEL_THRESHOLD}/channel, per-region compensated)`,
   );
@@ -300,6 +328,7 @@ test('intro-text frame diff vs Python reference (HARD)', async ({ page }) => {
 
   const ref = readFileSync(INTRO_REFERENCE);
   const diff = await pixelDiff(page, shot, ref);
+  METRICS['intro'] = { fraction: diff.fraction, threshold: MAX_INTRO_DIFF_FRACTION };
   console.log(
     `fidelity intro diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (${diff.diffPixels}/${diff.total}, threshold ${CHANNEL_THRESHOLD}/channel)`,
   );
@@ -354,6 +383,7 @@ test('stage-1 live gameplay frame diff vs Python reference (seeded, deterministi
 
   const ref = readFileSync(STAGE_REFERENCE);
   const diff = await pixelDiff(page, shot, ref);
+  METRICS['stage'] = { fraction: diff.fraction, threshold: MAX_STAGE_DIFF_FRACTION };
   console.log(
     `fidelity stage diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (${diff.diffPixels}/${diff.total}, threshold ${CHANNEL_THRESHOLD}/channel, seed=1)`,
   );
@@ -411,6 +441,7 @@ async function assertStaticScreen(
   mkdirSync(OUT_DIR, { recursive: true });
   writeFileSync(out, shot);
   const diff = await pixelDiff(page, shot, ref);
+  METRICS[label] = { fraction: diff.fraction, threshold: MAX_STATIC_DIFF_FRACTION };
   console.log(
     `fidelity ${label} diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (${diff.diffPixels}/${diff.total}, threshold ${CHANNEL_THRESHOLD}/channel)`,
   );

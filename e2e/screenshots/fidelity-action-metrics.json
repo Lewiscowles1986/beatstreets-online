@@ -1,0 +1,15 @@
+{
+  "generated_at": "2026-08-28T03:01:03.165Z",
+  "gates": {
+    "enemyattack": {
+      "fraction": 0.083734375,
+      "threshold": 0.5,
+      "status": "INFORMATIONAL"
+    },
+    "heropunch": {
+      "fraction": 0.09218489583333334,
+      "threshold": 0.5,
+      "status": "INFORMATIONAL"
+    }
+  }
+}

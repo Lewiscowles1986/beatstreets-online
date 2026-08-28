@@ -19,11 +19,12 @@
     "build-storybook": "npm run build:engine && storybook build",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "fidelity": "node scripts/fidelity.mjs",
     "e2e:screenshot": "playwright test --project=screenshots",
     "deploy": "echo 'Deploy handled by GitHub Actions (.github/workflows/pages.yml)'",
     "build:engine": "npm run build --workspace @beatstreets/engine",
     "test:engine": "npm run test --workspace @beatstreets/engine",
-    "precommit": "npm run typecheck && npm run lint && npm test && npm run build && playwright test --project=chromium --workers=1 e2e/fidelity.spec.ts e2e/game-canvas.spec.ts",
+    "precommit": "npm run typecheck && npm run lint && npm test && npm run build && playwright test --project=chromium --workers=1 e2e/fidelity.spec.ts e2e/fidelity-action.spec.ts e2e/game-canvas.spec.ts",
     "prepare": "husky"
   },
   "dependencies": {
