@@ -16,7 +16,22 @@ deterministically (seeded RNG, fixed frame counts), and dumps the screen surface
     --out beatstreets-web/e2e/reference/beatstreets-gameplay.png            # intro-text frame
 ./.venv/bin/python tools/capture_beatstreets_frame.py --state play --skip-intro --frames-to-play 90 \
     --out beatstreets-web/e2e/reference/beatstreets-gameplay-stage.png      # live stage-1 frame
+./.venv/bin/python tools/capture_beatstreets_frame.py --state controls \
+    --out beatstreets-web/e2e/reference/beatstreets-controls.png            # controls frame
+./.venv/bin/python tools/capture_beatstreets_frame.py --state gameover --result win \
+    --out beatstreets-web/e2e/reference/beatstreets-gameover-win.png        # game-over (win) frame
+./.venv/bin/python tools/capture_beatstreets_frame.py --state gameover --result lose \
+    --out beatstreets-web/e2e/reference/beatstreets-gameover-lose.png       # game-over (lose) frame
 ```
+
+The `--state controls` capture presses button 0 once (TITLE→CONTROLS) and dumps the
+static full-frame `menu_controls` blit. The `--state gameover` capture presses button 0
+twice (TITLE→CONTROLS→PLAY) then, on the next frame, forces a terminal state via a
+**driver-only hook** (the Python game is never modified): `--result lose` sets
+`game.player.lives = 0`; `--result win` sets `stage_index = len(STAGES)`, clears
+`text_active`, and raises `max_scroll_offset_x` so `update()`'s `next_stage()` (which
+would re-activate the outro text) is not triggered — leaving `check_won()` True so the
+PLAY update transitions to GAME_OVER and `draw()` blits `status_win`/`status_lose`.
 
 - Determinism: same seed + frame count ⇒ identical md5 (verify by running twice).
 - The reference PNGs are committed; regenerate only when the Python game changes,
@@ -30,13 +45,16 @@ npm run build                      # the spec drives the built bundle
 npx playwright test e2e/fidelity.spec.ts
 ```
 
-Three comparisons (all 800×480, per-pixel max-channel threshold 8/255):
+Six comparisons (all 800×480, per-pixel max-channel threshold 8/255):
 
 | Capture | Reference | Assertion |
 |---|---|---|
 | title (`title.html` e2e entry) | reconstructed pygame blit: raw `title0` on black + prompt glyphs (calibrated against the authentic cocoa capture) | **hard**: ≤1% pixels may differ |
-| intro text (`intro.html` e2e entry) | `beatstreets-gameplay.png` | informational (log) |
+| intro text (`intro.html` e2e entry) | `beatstreets-gameplay.png` | **hard**: ≤2% pixels may differ (round 007) — see §4 |
 | live stage 1 (`stage.html?seed=1&freeze=345` e2e entry) | `beatstreets-gameplay-stage.png` | **hard**: ≤1.5% pixels may differ (round 006) — see §4 |
+| controls (`controls.html` e2e entry) | `beatstreets-controls.png` | **hard**: ≤0.5% pixels may differ (round 007) — see §4 |
+| game-over win (`gameover.html?result=win` e2e entry) | `beatstreets-gameover-win.png` | **hard**: ≤0.5% pixels may differ (round 007) — see §4 |
+| game-over lose (`gameover.html?result=lose` e2e entry) | `beatstreets-gameover-lose.png` | **hard**: ≤0.5% pixels may differ (round 007) — see §4 |
 
 Artifacts land in `e2e/screenshots/fidelity-*.png` (+ a stage side-by-side).
 
@@ -130,6 +148,41 @@ and the stage metric dropped from 3.53% (round 005, where the 3rd Space press at
 active `jumpToStage` player) to **0.79%** — idle player matching Python. The residual is
 HUD bar-clip / sprite-edge jitter, not a state divergence. The stage gate is now **HARD**
 (≤1.5%; see §2 and 006 MEASUREMENT.md for the threshold derivation).
+
+### Static screens: controls + game-over (round 007)
+
+The controls and game-over screens are static full-frame image blits, so their gates are
+the tightest in the suite:
+
+- **Controls** — Python `State.CONTROLS` does `screen.fill((0,0,0))` then
+  `screen.blit("menu_controls", (0,0))`. The `controls.html` e2e entry blits the same
+  `menu_controls` sprite (md5-identical to the Python image) onto black at (0,0).
+- **Game-over** — Python `State.GAME_OVER` blits `status_win`/`status_lose` centred
+  (`WIDTH//2 - w//2, HEIGHT//2 - h//2`); both sprites are 800×480, so the centred blit
+  lands at (0,0). The `gameover.html?result=win|lose` e2e entry blits the corresponding
+  sprite onto black.
+
+All three are **HARD ≤0.5%**. The aligned metric is 0.00% (0/384000) — the web renders
+the identical sprite assets onto black, so the only residual is sub-threshold
+anti-aliasing / PNG round-trip jitter. 0.5% sits ~2 orders of magnitude below every
+structural-failure signature (missing/wrong sprite ≈ 100%, offset blit ≈ 10%+).
+
+### Intro alignment (round 007)
+
+The historical intro metric (7.82% in rounds 005–006) was diagnosed as two mechanical
+causes, both fixed:
+
+1. **PNG gamma chunk.** The font glyph sprites carried a `gamma`/`chromaticity` chunk
+   that the browser applies on decode, shifting glyph colours vs Python's raw rendering.
+   Stripped from the web font sprites (pixel data preserved; verified identical). The
+   same fix was applied to `status_win`/`status_lose` for the game-over gates.
+2. **Wrong stolen item.** At seed 1 Python's `choice(stolen_items)` returns index 2
+   ("THE COMPLETE WORKS OF\nSHAKESPEARE"), but the intro entry hardcoded index 1. The
+   entry now reads `?stolen=N` (default 2, the seed-1 choice).
+
+The aligned metric is now **0.00%** (0/384000), promoted to **HARD ≤2%** (the GOAL's
+"promote to hard only if honestly tight (≤2%)" rule; ~2 orders of magnitude below a
+missing/wrong-text structural failure ≈ 7.8%).
 
 ## 5. Python → web data flow
 

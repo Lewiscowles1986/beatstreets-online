@@ -26,19 +26,25 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
  * Diff metric: two PNGs are drawn into an 800x480 offscreen canvas in the browser and
  * compared per-pixel. A pixel "differs" when any RGB channel differs by more than
  * CHANNEL_THRESHOLD (8/255). The title assertion passes when the fraction of differing
- * pixels is <= MAX_DIFF_FRACTION (1%). The intro/stage diffs are informational this
- * pass (the metric number is what matters); they log the metric and write a
- * side-by-side composite.
+ * pixels is <= MAX_DIFF_FRACTION (1%). The intro/stage/controls/game-over diffs are
+ * HARD gates (see their per-gate thresholds); each logs the metric and writes a
+ * side-by-side composite where applicable.
  */
 
 const REFERENCE = resolve(__dirname, 'reference/beatstreets-title.png');
 const INTRO_REFERENCE = resolve(__dirname, 'reference/beatstreets-gameplay.png');
 const STAGE_REFERENCE = resolve(__dirname, 'reference/beatstreets-gameplay-stage.png');
+const CONTROLS_REFERENCE = resolve(__dirname, 'reference/beatstreets-controls.png');
+const GAMEOVER_WIN_REFERENCE = resolve(__dirname, 'reference/beatstreets-gameover-win.png');
+const GAMEOVER_LOSE_REFERENCE = resolve(__dirname, 'reference/beatstreets-gameover-lose.png');
 const OUT_DIR = resolve(__dirname, 'screenshots');
 const TITLE_OUT = resolve(OUT_DIR, 'fidelity-title.png');
 const INTRO_OUT = resolve(OUT_DIR, 'fidelity-intro.png');
 const STAGE_OUT = resolve(OUT_DIR, 'fidelity-gameplay-stage.png');
 const STAGE_SIDEBYSIDE = resolve(OUT_DIR, 'fidelity-gameplay-sidebyside.png');
+const CONTROLS_OUT = resolve(OUT_DIR, 'fidelity-controls.png');
+const GAMEOVER_WIN_OUT = resolve(OUT_DIR, 'fidelity-gameover-win.png');
+const GAMEOVER_LOSE_OUT = resolve(OUT_DIR, 'fidelity-gameover-lose.png');
 
 // Raw title logo asset used to reconstruct the true pygame blit for the title's
 // per-region compensation (see the header comment).
@@ -69,6 +75,34 @@ const MAX_DIFF_FRACTION = 0.01; // target <=1% at threshold 8 (title)
  *   documented residual source, not a state divergence.
  */
 const MAX_STAGE_DIFF_FRACTION = 0.015;
+
+/**
+ * HARD gate for the intro-text frame (GOAL G3). Round 007 diagnosed the historical
+ * 7.82% as two mechanical causes, both fixed:
+ *   1. The font glyph sprites carried a PNG `gamma`/`chromaticity` chunk that the
+ *      browser applies on decode, shifting glyph colours vs Python's raw rendering.
+ *      Stripped from the web font sprites (pixel data preserved).
+ *   2. The intro entry rendered the wrong stolen item: at seed 1 Python's
+ *      `choice(stolen_items)` returns index 2 ("THE COMPLETE WORKS OF\nSHAKESPEARE"),
+ *      but the entry hardcoded index 1. Fixed to read ?stolen=N (default 2).
+ * The aligned metric is now 0.00% (0/384000). Threshold = 2% per the GOAL's
+ * "promote to hard only if honestly tight (≤2%)" rule, ~2 orders of magnitude below
+ * every structural-failure signature (missing/wrong text ≈ 7.8%).
+ */
+const MAX_INTRO_DIFF_FRACTION = 0.02;
+
+/**
+ * HARD gates for the controls and game-over screens (GOAL G1/G2). These are static
+ * full-frame image blits: the Python CONTROLS state is `menu_controls` composited onto
+ * black at (0,0), and the GAME_OVER state is the fully-opaque `status_win`/`status_lose`
+ * blitted centred (which, at 800x480, lands at (0,0)). The web renders the identical
+ * sprite assets (md5-identical to the Python images) onto black, so the aligned metric
+ * is 0.00% — the only residual is sub-threshold anti-aliasing / PNG round-trip jitter.
+ * A 0.5% threshold is ~2 orders of magnitude below every structural-failure signature
+ * (missing sprite ≈ 100%, wrong sprite ≈ 100%, offset blit ≈ 10%+), so a real break
+ * cannot hide under it.
+ */
+const MAX_STATIC_DIFF_FRACTION = 0.005;
 
 /** Compare two PNG buffers in the browser and return the per-pixel diff summary. */
 async function pixelDiff(page: import('@playwright/test').Page, a: Buffer, b: Buffer) {
@@ -238,10 +272,10 @@ test('title screen matches the authentic Python capture at 800x480', async ({ pa
   expect(diff.fraction).toBeLessThanOrEqual(MAX_DIFF_FRACTION);
 });
 
-test('intro-text frame diff vs Python reference (informational)', async ({ page }) => {
+test('intro-text frame diff vs Python reference (HARD)', async ({ page }) => {
   await page.setViewportSize({ width: WIDTH, height: HEIGHT });
   // Dedicated e2e entry (intro.html) renders the fully-revealed intro story text on
-  // black, matching the Python intro frame captured at seed=1.
+  // black, matching the Python intro frame captured at seed=1 (stolen item index 2).
   await page.goto('/intro.html');
 
   const canvas = page.locator('canvas[aria-label="Story text"]');
@@ -269,7 +303,13 @@ test('intro-text frame diff vs Python reference (informational)', async ({ page 
   console.log(
     `fidelity intro diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (${diff.diffPixels}/${diff.total}, threshold ${CHANNEL_THRESHOLD}/channel)`,
   );
-  // Informational this pass — the metric number is what matters.
+  // HARD gate (GOAL G3). Round 007 fixed the two mechanical causes of the historical
+  // 7.82% (gamma chunk on font sprites + wrong stolen item), bringing the aligned
+  // metric to 0.00%. See MAX_INTRO_DIFF_FRACTION for the threshold derivation.
+  expect(diff.fraction).toBeLessThanOrEqual(MAX_INTRO_DIFF_FRACTION);
+  console.log(
+    `fidelity intro diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (HARD gate <= ${(MAX_INTRO_DIFF_FRACTION * 100).toFixed(2)}%)`,
+  );
 });
 
 test('stage-1 live gameplay frame diff vs Python reference (seeded, deterministic)', async ({ page }) => {
@@ -334,5 +374,88 @@ test('stage-1 live gameplay frame diff vs Python reference (seeded, deterministi
   expect(diff.fraction).toBeLessThanOrEqual(MAX_STAGE_DIFF_FRACTION);
   console.log(
     `fidelity stage diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (HARD gate <= ${(MAX_STAGE_DIFF_FRACTION * 100).toFixed(2)}%)`,
+  );
+});
+
+/**
+ * Shared body for the static full-frame screen gates (controls + game-over). Renders a
+ * dedicated e2e entry at 800x480, waits for a non-blank canvas, screenshots it, and
+ * compares against the Python reference with the HARD static gate.
+ */
+async function assertStaticScreen(
+  page: import('@playwright/test').Page,
+  url: string,
+  ariaLabel: string,
+  ref: Buffer,
+  out: string,
+  label: string,
+) {
+  await page.setViewportSize({ width: WIDTH, height: HEIGHT });
+  await page.goto(url);
+  const canvas = page.locator(`canvas[aria-label="${ariaLabel}"]`);
+  await expect(canvas).toBeVisible();
+  await expect(canvas).toHaveCSS('width', `${WIDTH}px`);
+  await expect(canvas).toHaveCSS('height', `${HEIGHT}px`);
+  await page.waitForFunction(() => {
+    const c = document.querySelector('canvas') as HTMLCanvasElement | null;
+    if (!c) return false;
+    const ctx = c.getContext('2d');
+    if (!ctx) return false;
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] > 0 || d[i + 1] > 0 || d[i + 2] > 0) return true;
+    }
+    return false;
+  });
+  const shot = await canvas.screenshot();
+  mkdirSync(OUT_DIR, { recursive: true });
+  writeFileSync(out, shot);
+  const diff = await pixelDiff(page, shot, ref);
+  console.log(
+    `fidelity ${label} diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (${diff.diffPixels}/${diff.total}, threshold ${CHANNEL_THRESHOLD}/channel)`,
+  );
+  expect(diff.fraction).toBeLessThanOrEqual(MAX_STATIC_DIFF_FRACTION);
+  console.log(
+    `fidelity ${label} diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (HARD gate <= ${(MAX_STATIC_DIFF_FRACTION * 100).toFixed(2)}%)`,
+  );
+}
+
+test('controls screen matches the authentic Python capture at 800x480 (HARD)', async ({ page }) => {
+  // GOAL G1: the Python CONTROLS state is `menu_controls` composited onto black at
+  // (0,0). The web renders the identical sprite (md5-identical to the Python image)
+  // onto black, so the aligned metric is 0.00% and the gate is HARD <= 0.5%.
+  await assertStaticScreen(
+    page,
+    '/controls.html',
+    'Controls screen',
+    readFileSync(CONTROLS_REFERENCE),
+    CONTROLS_OUT,
+    'controls',
+  );
+});
+
+test('game-over (win) screen matches the authentic Python capture at 800x480 (HARD)', async ({ page }) => {
+  // GOAL G2: the Python GAME_OVER win state blits the fully-opaque `status_win` centred
+  // (at 800x480 this lands at (0,0)). The web renders the identical sprite onto black.
+  await assertStaticScreen(
+    page,
+    '/gameover.html?result=win',
+    'Game over screen',
+    readFileSync(GAMEOVER_WIN_REFERENCE),
+    GAMEOVER_WIN_OUT,
+    'gameover-win',
+  );
+});
+
+test('game-over (lose) screen matches the authentic Python capture at 800x480 (HARD)', async ({ page }) => {
+  // GOAL G2: the Python GAME_OVER lose state blits the fully-opaque `status_lose`
+  // centred (at 800x480 this lands at (0,0)). The web renders the identical sprite.
+  await assertStaticScreen(
+    page,
+    '/gameover.html?result=lose',
+    'Game over screen',
+    readFileSync(GAMEOVER_LOSE_REFERENCE),
+    GAMEOVER_LOSE_OUT,
+    'gameover-lose',
   );
 });
