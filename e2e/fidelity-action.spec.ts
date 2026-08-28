@@ -10,17 +10,17 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
  * python driver (tools/capture_beatstreets_frame.py --press/--hold) and replays the
  * IDENTICAL schedule through the web stage entry (stage.html?press=&hold=&freeze=).
  *
- * These gates are INFORMATIONAL, not HARD. The web engine's combat RNG is NOT
- * bit-aligned with Python's: the web's enemy AI stops attacking after its first
- * attack (the python enemy keeps re-engaging), so the two simulations diverge a few
- * frames into combat and the per-pixel diff is ~8% (vs 0.7% for the idle stage). The
- * trace-derived blocker is documented in 008 MEASUREMENT.md. The gate therefore logs
- * the diff and asserts only a gross structural-failure bound (the scene rendered, not
- * blank/missing) — a real regression (blank canvas, missing sprites) still fails.
+ * HARD since 010: the combat simulation is BIT-EXACT with python — the full randint
+ * stream matches for both schedules (asserted full-stream by
+ * src/game/action-parity.test.ts against the committed python traces) — and the
+ * rendering matches: measured diffs 0.72%/0.80% are at the stage-1 dithering baseline
+ * (0.73%). Root causes fixed along the way: JS `in`-on-array hit-frame check
+ * (indices vs python's value membership; landed every hit on frame 0) and the
+ * draw-order sort dropping get_draw_order_offset (player drawn under same-y enemies).
  *
- * The value: the web provably replays the same deterministic input schedule (hold
- * right + punch) and renders a live combat scene; the diff is a known, documented
- * residual, not a silent divergence.
+ * HARD threshold ≤1.5%: derived exactly like the stage gate — measured value
+ * (~0.8%) plus documented headroom (the stage gate uses the same derivation:
+ * 0.73% measured → ≤1.5%).
  */
 
 const REFERENCE = resolve(__dirname, 'reference');
@@ -28,10 +28,9 @@ const OUT_DIR = resolve(__dirname, 'screenshots');
 const WIDTH = 800;
 const HEIGHT = 480;
 const CHANNEL_THRESHOLD = 8;
-// Gross structural-failure bound: a blank/missing scene is ~100% diff; a rendered
-// combat scene (even with the documented combat-RNG divergence) is ~8%. Anything
-// above 50% means the scene did not render at all.
-const MAX_STRUCTURAL_DIFF_FRACTION = 0.5;
+// HARD: measured 0.72%/0.80% (stage-1 dithering baseline) + documented headroom,
+// same derivation as the stage gate (0.73% measured → ≤1.5%).
+const MAX_ACTION_DIFF_FRACTION = 0.015;
 
 /** Action-gate metric table, written to fidelity-action-metrics.json for the
  *  `npm run fidelity` report. */
@@ -122,15 +121,15 @@ async function assertActionFrame(
   writeFileSync(outPath, shot);
   const ref = readFileSync(refPath);
   const diff = await pixelDiff(page, shot, ref);
-  METRICS[label] = { fraction: diff.fraction, threshold: MAX_STRUCTURAL_DIFF_FRACTION, status: 'INFORMATIONAL' };
+  METRICS[label] = { fraction: diff.fraction, threshold: MAX_ACTION_DIFF_FRACTION, status: 'HARD' };
   console.log(
-    `fidelity-action ${label} diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (${diff.diffPixels}/${diff.total}, threshold ${CHANNEL_THRESHOLD}/channel) — INFORMATIONAL (combat RNG not bit-aligned; see 008 MEASUREMENT.md)`,
+    `fidelity-action ${label} diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (${diff.diffPixels}/${diff.total}, threshold ${CHANNEL_THRESHOLD}/channel)`,
   );
-  // Structural bound only: the scene must have rendered (not blank/missing).
-  expect(diff.fraction).toBeLessThanOrEqual(MAX_STRUCTURAL_DIFF_FRACTION);
+  console.log(`fidelity-action ${label} diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (HARD gate <= 1.50%)`);
+  expect(diff.fraction).toBeLessThanOrEqual(MAX_ACTION_DIFF_FRACTION);
 }
 
-test('enemy attack on hero (hero in hit animation) — INFORMATIONAL', async ({ page }) => {
+test('enemy attack on hero (hero in hit animation) — HARD', async ({ page }) => {
   // Python: --state play --skip-intro --frames-to-play 290 --seed 1 --hold right:0:290
   // The enemy (vax) walks in and attacks; the hit lands. The python driver captures at
   // game timer 544 (live frame 289 — the loop breaks when gameplay_frames >= 290, so
@@ -144,7 +143,7 @@ test('enemy attack on hero (hero in hit animation) — INFORMATIONAL', async ({ 
   );
 });
 
-test('hero punch connecting (hero in punch animation, enemy hit) — INFORMATIONAL', async ({ page }) => {
+test('hero punch connecting (hero in punch animation, enemy hit) — HARD', async ({ page }) => {
   // Python: --state play --skip-intro --frames-to-play 185 --seed 1 --hold right:0:180
   // --press 180:0. The hero walks to the enemy and punches; the punch connects. The
   // python driver captures at game timer 439 (live frame 184). Freeze at timer 439.

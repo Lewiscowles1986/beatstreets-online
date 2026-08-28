@@ -487,7 +487,12 @@ class Host {
     const scroll = this.game.scrollOffset.x;
     // Fighters are anchored at ("center", anchorY) — a pixel offset from the sprite's
     // top — and their screen Y is raised by heightAboveGround (Python ScrollHeightActor).
-    const objs = [this.game.player, ...this.game.enemies].sort((a, b) => a.vpos.y - b.vpos.y);
+    // Python sorts by `vpos.y + get_draw_order_offset()` (Player=+1, so the player
+    // draws ON TOP of an enemy at the same Y). The offset must be included — without
+    // it, ties keep the player first and the enemy renders over the hero.
+    const objs = [this.game.player, ...this.game.enemies].sort(
+      (a, b) => a.vpos.y + a.getDrawOrderOffset() - (b.vpos.y + b.getDrawOrderOffset()),
+    );
     for (const o of objs) {
       render.blitSprite(o.determineSprite(), o.vpos.x - scroll, o.vpos.y - o.heightAboveGround, ['center', o.anchorY]);
       if (this.debug) render.drawCircle(o.vpos.x - scroll, o.vpos.y, 5, '#ff0');
