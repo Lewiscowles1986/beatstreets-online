@@ -46,7 +46,7 @@ export class Player extends Fighter {
       }
       return attackByName(this.game, 'punch');
     } else if (this.controls.pressed(1)) {
-      const pick = Math.random() < 0.5 ? 'kick' : 'highkick';
+      const pick = this.game.rng.random() < 0.5 ? 'kick' : 'highkick';
       return attackByName(this.game, pick);
     } else if (this.controls.pressed(2)) {
       return attackByName(this.game, 'elbow');

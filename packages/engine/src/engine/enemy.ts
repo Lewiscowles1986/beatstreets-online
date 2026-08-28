@@ -1,7 +1,7 @@
 import { Fighter, GameContext, FallingState } from './fighter';
 import { Attack } from './attack';
 import { Character } from '../dsl/characters';
-import { Vec2, clamp, sign, randInt, choice } from '../core/math';/** Enemy behaviour states (mirrors Enemy.State). */
+import { Vec2, clamp, sign } from '../core/math';/** Enemy behaviour states (mirrors Enemy.State). */
 export enum EnemyState {
   APPROACH_PLAYER = 0,
   GO_TO_POS = 1,
@@ -130,7 +130,7 @@ export abstract class Enemy extends Fighter {
       this.state = EnemyState.APPROACH_PLAYER;
       return;
     }
-    const r = randInt(0, 9);
+    const r = this.game.rng.randint(0, 9);
     if (r < 7) {
       // Attack the player from their side; flank if another enemy already is.
       const sameSide = this.game
@@ -146,18 +146,18 @@ export abstract class Enemy extends Fighter {
         this.state = EnemyState.GO_TO_POS;
         this.target.x = player.vpos.x - sign(this.vpos.x - player.vpos.x) * 50;
         this.target.y = player.vpos.y + sign(this.vpos.y - player.vpos.y) * 50;
-        if (this.target.y === player.vpos.y) this.target.y = player.vpos.y + choice([-1, 1]) * 50;
+        if (this.target.y === player.vpos.y) this.target.y = player.vpos.y + this.game.rng.choice([-1, 1]) * 50;
       } else {
         this.state = EnemyState.APPROACH_PLAYER;
       }
     } else if (r < 9) {
-      const xSide = sign(this.vpos.x - player.vpos.x) || choice([1, -1]);
+      const xSide = sign(this.vpos.x - player.vpos.x) || this.game.rng.choice([1, -1]);
       const x1 = player.vpos.x + 150 * xSide;
       const x2 = player.vpos.x + 400 * xSide;
-      this.target = new Vec2(randInt(Math.min(x1, x2), Math.max(x1, x2)), randInt(this.game.boundary.top, this.game.boundary.bottom));
+      this.target = new Vec2(this.game.rng.randint(Math.min(x1, x2), Math.max(x1, x2)), this.game.rng.randint(this.game.boundary.top, this.game.boundary.bottom));
       this.state = EnemyState.GO_TO_POS;
     } else {
-      this.stateTimer = randInt(50, 100);
+      this.stateTimer = this.game.rng.randint(50, 100);
       this.state = EnemyState.PAUSE;
     }
   }
@@ -170,10 +170,10 @@ export abstract class Enemy extends Fighter {
       this.vpos.y === player.vpos.y &&
       this.approachPlayerDistance * 0.9 < Math.abs(this.vpos.x - player.vpos.x) &&
       Math.abs(this.vpos.x - player.vpos.x) <= this.approachPlayerDistance * 1.1 &&
-      randInt(0, 19) === 0
+      this.game.rng.randint(0, 19) === 0
     ) {
       if (this.weapon) return this.game.getAttack(this.weapon.name) ? new Attack(this.game.getAttack(this.weapon.name)!) : null;
-      const name = choice(this.attacks);
+      const name = this.game.rng.choice(this.attacks);
       const spec = this.game.getAttack(name);
       if (!spec) return null;
       const attack = new Attack(spec);

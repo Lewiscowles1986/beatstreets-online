@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Game, Scene, SceneManager, KonamiDetector, Barrel, Stick, Chain, HealthPowerup, ExtraLifePowerup, WebSocketController } from '@beatstreets/engine';
+import { Game, Scene, SceneManager, KonamiDetector, Barrel, Stick, Chain, HealthPowerup, ExtraLifePowerup, WebSocketController, seededRng } from '@beatstreets/engine';
 import { loadGameSpec } from '../game/data';
 import { CanvasRender, Anchor } from '../game/render/canvas-render';
 import { WebGLRender } from '../game/render/webgl-render';
@@ -22,6 +22,11 @@ export interface GameCanvasProps {
   forceCanvas2D?: boolean;
   /** Optional WebSocket URL to drive the game remotely (WebSocketController). */
   wsUrl?: string;
+  /** Optional seed for a deterministic RNG (used by the e2e stage capture). */
+  seed?: number;
+  /** Stop the rAF loop once the game timer reaches this value, freezing the canvas on
+   * that exact frame (frame-exact e2e captures; no wall-clock jitter). */
+  freezeAtTimer?: number;
 }
 
 /**
@@ -30,15 +35,16 @@ export interface GameCanvasProps {
  * WebGL backend (falling back to Canvas 2D when WebGL is unavailable). This is the
  * real app surface the shell mounts. Sprites are preloaded first.
  */
-export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl }: GameCanvasProps) {
+export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false, forceCanvas2D = false, wsUrl, seed, freezeAtTimer }: GameCanvasProps) {
   const { ready } = useSpriteAssets();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<Host | null>(null);
   if (hostRef.current === null) {
-    hostRef.current = new Host(width, height, stage, debug, forceCanvas2D, wsUrl);
+    hostRef.current = new Host(width, height, stage, debug, forceCanvas2D, wsUrl, seed);
   }
   const [ov, setOv] = useState(() => ({
     scene: 'title' as string,
+    frozen: false,
     titleFrame: 0,
     pauseCursor: 0,
     score: 0,
@@ -66,6 +72,13 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
     const step = () => {
       host.tick();
       refresh();
+      // Frame-exact freeze for e2e captures: after the tick that reaches the target
+      // timer, the canvas holds exactly that frame's render — stop the loop so no
+      // further tick (and no wall-clock jitter) can advance it before the screenshot.
+      if (freezeAtTimer !== undefined && host.getOverlayState().timer >= freezeAtTimer) {
+        setOv((prev) => ({ ...prev, frozen: true }));
+        return;
+      }
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
@@ -91,7 +104,7 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
   const scene = ov.scene;
 
   return (
-    <div style={{ position: 'relative', width, height }} data-scene={scene}>
+    <div style={{ position: 'relative', width, height }} data-scene={scene} data-timer={ov.timer} data-frozen={ov.frozen ? '1' : undefined}>
       <canvas
         ref={canvasRef}
         role="application"
@@ -135,6 +148,7 @@ class Host {
   private konami = new KonamiDetector();
   private controls: DisposableControls;
   private audio = new AudioController();
+  private seed?: number;
   private lastDirections: [boolean, boolean, boolean, boolean] = [false, false, false, false];
   // Pause / cheat menu cursor state.
   private pauseCursor = 0;
@@ -156,6 +170,7 @@ class Host {
   getOverlayState() {
     return {
       scene: this.sceneName(),
+      frozen: false,
       titleFrame: this.titleFrame,
       pauseCursor: this.pauseCursor,
       score: this.game.score,
@@ -176,15 +191,16 @@ class Host {
     this.onSceneChange?.();
   }
 
-  constructor(width: number, height: number, stage: number, debug: boolean, forceCanvas2D: boolean, wsUrl?: string) {
+  constructor(width: number, height: number, stage: number, debug: boolean, forceCanvas2D: boolean, wsUrl?: string, seed?: number) {
     this.width = width;
     this.height = height;
     this.stage = stage;
     this.debug = debug;
     this.isWebGL = !forceCanvas2D;
+    this.seed = seed;
     // Optionally attach a WebSocket controller (driven remotely).
     this.controls = makeControls(wsUrl ? createWebSocketController(wsUrl) : undefined);
-    this.game = new Game(loadGameSpec(), this.controls);
+    this.game = this.newGame();
 
     const title = new (class extends Scene {
       constructor(private h: Host) {
@@ -309,7 +325,7 @@ class Host {
   startPlay(): void {
     this.sceneManager.switch('play');
     this.notifyScene();
-    this.game = new Game(loadGameSpec(), this.controls);
+    this.game = this.newGame();
     this.game.jumpToStage(this.stage);
     this.konami.reset();
     this.pauseCursor = 0;
@@ -327,9 +343,16 @@ class Host {
   toTitle(): void {
     this.sceneManager.switch('title');
     this.notifyScene();
-    this.game = new Game(loadGameSpec(), this.controls);
+    this.game = this.newGame();
     this.konami.reset();
     this.audio.pauseTheme();
+  }
+
+  /** Build a Game, seeding its RNG when a seed is configured (deterministic replays). */
+  private newGame(): Game {
+    return new Game(loadGameSpec(), this.controls, {
+      rng: this.seed !== undefined ? seededRng(this.seed) : undefined,
+    });
   }
 
   /** Edge-detect the four directions and map them to Konami tokens for this frame. */

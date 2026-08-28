@@ -124,13 +124,14 @@ export function remapClamp(oldVal: number, oldMin: number, oldMax: number, newMi
   return Math.min(upper, Math.max(lower, remap(oldVal, oldMin, oldMax, newMin, newMax)));
 }
 
-/** Random integer in [min, max] inclusive. */
-export function randInt(min: number, max: number, rng: () => number = Math.random): number {
+/** Random integer in [min, max] inclusive. `rng` must be supplied — bare `Math.random`
+ * defaults are removed so all engine randomness flows through the injectable RNG. */
+export function randInt(min: number, max: number, rng: () => number): number {
   return Math.floor(rng() * (max - min + 1)) + min;
 }
 
 /** Random element from an array. */
-export function choice<T>(arr: T[], rng: () => number = Math.random): T {
+export function choice<T>(arr: T[], rng: () => number): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 
