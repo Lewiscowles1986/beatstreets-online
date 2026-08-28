@@ -297,22 +297,34 @@ test('stage-1 live gameplay frame diff vs Python reference (seeded, deterministi
   const composite = await sideBySide(page, shot, ref);
   writeFileSync(STAGE_SIDEBYSIDE, Buffer.from(composite.split(',')[1], 'base64'));
 
-  // Informational, per G3's contract: the web engine's RNG core is now a bit-identical
-  // reimplementation of CPython's MT19937 (core/prng.ts, seededRng == cpythonRng), so a
-  // single draw matches CPython exactly. The entity STATES still do NOT bit-align because
-  // the web consumes RNG draws in a DIFFERENT ORDER/COUNT than the Python game:
-  //   (1) The Python game advances the shared RNG on every sound via get_sound ->
-  //       randint(0, count-1) (the off-screen stage-1 enemy beating the idle player fires
-  //       many hit-sound variant draws); the web's audio system never draws from rng.
-  //   (2) The intro stolen-item choice and the enemy colour-variant draw happen in a
-  //       different relative order (web: stolen-item first; python: colour-variant first).
-  //   (3) The web stage 1 has a single fixed EnemyVax@(1000,400) matching python stage 1,
-  //       but per-frame entity/event ordering differs (web skips the intro text + 255-frame
-  //       fade that python runs).
-  // Because these are engine-logic / draw-order divergences (not PRNG correctness), the
-  // stage stays informational — a hard gate would be "picking a loose threshold to pass"
-  // over unaligned states. Exact divergence points are documented in docs/FIDELITY.md and
-  // the 004-.../MEASUREMENT.md + BUILDER.md.
+  // Informational, per G4's contract. The web engine's RNG core is a bit-identical
+  // reimplementation of CPython's MT19937 (core/prng.ts, seededRng == cpythonRng), and
+  // round 005 routed sound-variant selection through game.rng (get_sound ->
+  // randint(0, count-1)) and aligned the world-setup draw order (enemy colour variants
+  // + weapon durability drawn at Game construction, BEFORE the stolen-item choice,
+  // matching Python's setup_stages). An engine-level draw-parity test now verifies the
+  // web's constructor consumes the EXACT same 85 world-setup draws Python does at seed 1
+  // (src/game/sound-parity.test.ts).
+  //
+  // The entity STATES still do NOT bit-align between a web capture and the Python
+  // capture at the same seed, because the web consumes RNG draws in a DIFFERENT
+  // FRAME FLOW than the Python driver:
+  //   (1) Python runs the intro text (teletype draws) + 255-frame fade + menu frames,
+  //       so by its freeze point it has consumed 184 draws (85 world-setup + 99
+  //       intro/fade/combat sounds). The web's GameCanvas Host uses jumpToStage, which
+  //       skips the intro text + fade entirely, so the web's single Game reaches only
+  //       its 85 world-setup draws (plus the GameCanvas Host additionally constructs the
+  //       Game twice — once in the Host ctor, once at startPlay — re-seeding each).
+  //   (2) The residual ~99 draws Python consumes from intro-text teletype and fade/early
+  //       enemy-combat sounds are therefore missing on the web, so the web's RNG stream
+  //       is at a different position than Python's and the enemy's per-frame state
+  //       diverges.
+  // Because these are engine/frame-flow divergences (not PRNG correctness or missing
+  // sound-variant draws), the stage stays informational — a hard gate over these
+  // unaligned states would be "picking a loose threshold to pass". The measured stage
+  // metric (3.53%, essentially unchanged from 3.50%) confirms the residual is
+  // frame-flow state divergence, not the audio RNG. Exact divergence points are
+  // documented in docs/FIDELITY.md §4 and the 005-.../MEASUREMENT.md + BUILDER.md.
   console.log(
     `fidelity stage diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (informational)`,
   );

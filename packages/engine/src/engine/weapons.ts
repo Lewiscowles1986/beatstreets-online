@@ -171,13 +171,13 @@ export class BreakableWeapon extends Weapon {
 }
 
 export class Stick extends BreakableWeapon {
-  constructor(game: GameContext, pos: Vec2) {
-    super(game, pos, 'stick', game.rng.randint(12, 16));
+  constructor(game: GameContext, pos: Vec2, durability?: number) {
+    super(game, pos, 'stick', durability ?? game.rng.randint(12, 16));
   }
 }
 
 export class Chain extends BreakableWeapon {
-  constructor(game: GameContext, pos: Vec2) {
-    super(game, pos, 'chain', game.rng.randint(18, 25));
+  constructor(game: GameContext, pos: Vec2, durability?: number) {
+    super(game, pos, 'chain', durability ?? game.rng.randint(18, 25));
   }
 }

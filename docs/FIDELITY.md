@@ -70,34 +70,56 @@ that pin values captured from real CPython (`core/prng.test.ts`):
 - Seeding mirrors `random_seed`: absolute value split into 32-bit little-endian words,
   fed to `init_by_array` (empty key → `[0]`). Negative seeds use `abs`.
 
-A single draw is therefore bit-identical to CPython. The entity STATES still do NOT
-bit-align between a web capture and a Python capture at the same seed, because the web
-consumes RNG draws in a DIFFERENT ORDER/COUNT than the Python game:
+### Audio-variant RNG parity (round 005)
 
-1. **Sound-variant draws.** Python advances the shared RNG on every sound via
-   `get_sound → randint(0, count-1)`. In the stage capture the off-screen EnemyVax
-   beating the idle player fires many hit-sound variant draws, and teletype draws
-   `randint(0,0)`. The web audio system never draws from `rng`, so its stream is far
-   behind Python's (measured: web made **3** draws by the freeze point vs Python's
-   **184**).
-2. **Intro/colour-variant order.** The web draws the intro `choice(stolen_items)`
-   first; Python draws enemy `colour_variant` before the stolen-item choice.
-3. **Per-frame entity/event ordering.** The web's `jumpToStage` skips the intro text
-   and 255-frame fade that the Python driver runs, so gameplay-frame tick alignment
-   differs even though both stage-1 configs are a single `EnemyVax@(1000,400)`.
+Python draws randomness from a single module RNG on EVERY sound via `get_sound →
+randint(0, count-1)`, including count-1 sounds and off-screen/inaudible events. The web
+now mirrors that (G1): `Game.playSound(name, variants)` consumes `randint(0,
+variants-1)` from `game.rng` at the decision point, decoupled from playback (the draw
+happens even when audio is muted/unavailable — Python's mixer is in `try/except` too).
+The chosen variant is stored, so a future SFX backend can play the exact file Python
+would.
 
-These are engine-logic / draw-order divergences (not PRNG correctness), so the stage
-gate stays **informational** — a hard gate over these unaligned states would be
-"picking a loose threshold to pass." The title gate (≤1%) and intro (informational)
-are unaffected. Restoring a hard stage gate requires matching the web's per-frame RNG
-consumption to Python's (sound draws, intro order, spawn timing) — a fidelity rewrite
-for a later round (see `docs/adversarial-gauntlet/004-cpython-prng-hard-stage-gate/`).
+The world-setup draw order is also aligned (G3): Python's `setup_stages()` pre-builds
+every stage at `Game.__init__`, drawing enemy `colour_variant` `randint(0,2)` (vax /
+hoodie / scooterboy / boss) and Stick/Chain durability, THEN the intro stolen-item
+choice. The web `Game` ctor now does the same `preDrawWorldRng()` pass in stage order
+(colour variants + weapon durability before the stolen choice) and reuses the pre-drawn
+values when a stage is lazily built. A draw-parity unit test
+(`src/game/sound-parity.test.ts`) verifies the web constructor consumes the exact same
+85 world-setup draws Python does at seed 1.
 
-The stage test drives `stage.html?seed=1&freeze=345` mirroring the Python driver:
-title→controls→play, skip intro, wait out the 255-frame fade, then 90 live-gameplay
-frames. The entry FREEZES the rAF loop at game timer 345 (`freezeAtTimer`), so the
-captured frame is frame-exact and the metric is stable across runs (3.50% with the
-CPython RNG, unchanged from the 3.53% mulberry32 baseline — see MEASUREMENT.md).
+### Trace workflow
+
+- `tools/capture_beatstreets_frame.py --trace-rng` prints one line per game RNG draw
+  (`frame, index, site, args, value`) without changing the default behaviour or the
+  captured frame. At seed 1 the Python capture consumes **184** draws by its freeze
+  point: 85 at Game construction (83 colour + 1 Stick durability + 1 stolen choice) +
+  99 `get_sound` draws from the intro-text teletype and fade/early combat.
+- The engine exposes `opts.debugRng` → `game.rngTrace` (a `TracingRng` in
+  `core/prng.ts`) that records every draw with its game frame for engine-level
+  comparison against the Python trace.
+
+The entity STATES still do NOT bit-align between a web capture and a Python capture at
+the same seed, because the web consumes RNG draws in a DIFFERENT FRAME FLOW than the
+Python driver:
+
+1. **Frame flow (the residual 99 draws).** Python runs the intro text (teletype draws)
+   + 255-frame fade + menu frames, consuming 184 draws by its freeze point. The web
+   `GameCanvas` Host uses `jumpToStage`, which skips the intro text + fade entirely, so
+   a single web `Game` reaches only its 85 world-setup draws. The Host additionally
+   constructs the `Game` twice (Host ctor + `startPlay`), re-seeding each. The missing
+   intro/fade sound draws leave the web's RNG stream at a different position than
+   Python's, so the enemy's per-frame state diverges.
+
+These are frame-flow divergences (not PRNG correctness or missing sound-variant draws),
+so the stage gate stays **informational** — a hard gate over these unaligned states
+would be "picking a loose threshold to pass." The title gate (≤1%) and intro
+(informational) are unaffected. The stage test drives `stage.html?seed=1&freeze=345`
+mirroring the Python driver: title→controls→play, skip intro, wait out the 255-frame
+fade, then 90 live-gameplay frames; the entry FREEZES the rAF loop at game timer 345
+(`freezeAtTimer`) so the captured frame is frame-exact and the metric is stable
+(3.53% in 005, essentially unchanged from 3.50% — see MEASUREMENT.md).
 
 ## 5. Python → web data flow
 
