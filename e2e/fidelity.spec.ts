@@ -297,15 +297,22 @@ test('stage-1 live gameplay frame diff vs Python reference (seeded, deterministi
   const composite = await sideBySide(page, shot, ref);
   writeFileSync(STAGE_SIDEBYSIDE, Buffer.from(composite.split(',')[1], 'base64'));
 
-  // Informational, per G3's contract: the web engine's RNG sequence (mulberry32) is
-  // NOT the same as CPython's Mersenne Twister, and the engine consumes draws in a
-  // different order, so the two captures show the same structure with different entity
-  // states — states are NOT bit-aligned across implementations. Exact divergence
-  // points (see docs/FIDELITY.md): (1) PRNG algorithm, (2) draw order per frame, (3)
-  // pre-freeze input press timing is wall-clock (affects which frame the intro skip
-  // lands on, though the freeze pins the post-skip tick count). A hard gate becomes
-  // possible by replicating CPython's MT19937 getrandbits/_randbelow semantics in
-  // core/prng.ts (next-round candidate).
+  // Informational, per G3's contract: the web engine's RNG core is now a bit-identical
+  // reimplementation of CPython's MT19937 (core/prng.ts, seededRng == cpythonRng), so a
+  // single draw matches CPython exactly. The entity STATES still do NOT bit-align because
+  // the web consumes RNG draws in a DIFFERENT ORDER/COUNT than the Python game:
+  //   (1) The Python game advances the shared RNG on every sound via get_sound ->
+  //       randint(0, count-1) (the off-screen stage-1 enemy beating the idle player fires
+  //       many hit-sound variant draws); the web's audio system never draws from rng.
+  //   (2) The intro stolen-item choice and the enemy colour-variant draw happen in a
+  //       different relative order (web: stolen-item first; python: colour-variant first).
+  //   (3) The web stage 1 has a single fixed EnemyVax@(1000,400) matching python stage 1,
+  //       but per-frame entity/event ordering differs (web skips the intro text + 255-frame
+  //       fade that python runs).
+  // Because these are engine-logic / draw-order divergences (not PRNG correctness), the
+  // stage stays informational — a hard gate would be "picking a loose threshold to pass"
+  // over unaligned states. Exact divergence points are documented in docs/FIDELITY.md and
+  // the 004-.../MEASUREMENT.md + BUILDER.md.
   console.log(
     `fidelity stage diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (informational)`,
   );
