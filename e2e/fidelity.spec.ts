@@ -254,20 +254,35 @@ test('intro-text frame diff vs Python reference (informational)', async ({ page 
   // Informational this pass — the metric number is what matters.
 });
 
-test('stage-1 live gameplay frame diff vs Python reference (informational)', async ({ page }) => {
+test('stage-1 live gameplay frame diff vs Python reference (seeded, deterministic)', async ({ page }) => {
   await page.setViewportSize({ width: WIDTH, height: HEIGHT });
-  await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
-  await page.getByRole('button', { name: 'Play' }).click();
+  // Dedicated e2e entry (stage.html) renders the real game host with a FIXED seed so
+  // the RNG sequence is deterministic across runs. We mirror the Python capture driver
+  // (tools/capture_beatstreets_frame.py --skip-intro --frames-to-play 90 --seed 1):
+  //   title -> controls -> play (two button-0 presses), skip the intro text, wait out
+  //   the 255-frame fade, then advance 90 live-gameplay frames and capture.
+  await page.goto('/stage.html?seed=1&freeze=345');
 
   const canvas = page.locator('canvas[aria-label^="Beat Streets game"]');
   await expect(canvas).toBeVisible({ timeout: 15000 });
-  // Advance title -> controls -> play with two button-0 (space) presses.
+  await expect(canvas).toHaveCSS('width', `${WIDTH}px`);
+  await expect(canvas).toHaveCSS('height', `${HEIGHT}px`);
+
+  // title -> controls -> play (button 0 = Space), matching the driver's frames 0 and 2.
   await page.keyboard.press('Space');
   await page.waitForTimeout(120);
   await page.keyboard.press('Space');
-  // Let the live stage-1 gameplay advance ~90 frames (~1.5s at 60fps).
-  await page.waitForTimeout(1500);
+
+  // Wait until the play scene is active, then skip the intro text with a button-0 press.
+  await page.waitForSelector('[data-scene="play"]', { timeout: 15000 });
+  await page.waitForTimeout(200);
+  await page.keyboard.press('Space');
+
+  // Wait out the 255-frame fade + 90 live-gameplay frames FRAME-EXACTLY: the stage
+  // entry (stage.html?freeze=345) stops its rAF loop the moment the game timer reaches
+  // 345, so the canvas holds exactly that frame's render — no wall-clock jitter can
+  // advance the state between freeze and screenshot.
+  await page.waitForSelector('[data-frozen="1"]', { timeout: 30000 });
 
   const shot = await canvas.screenshot();
   mkdirSync(OUT_DIR, { recursive: true });
@@ -276,10 +291,22 @@ test('stage-1 live gameplay frame diff vs Python reference (informational)', asy
   const ref = readFileSync(STAGE_REFERENCE);
   const diff = await pixelDiff(page, shot, ref);
   console.log(
-    `fidelity stage diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (${diff.diffPixels}/${diff.total}, threshold ${CHANNEL_THRESHOLD}/channel)`,
+    `fidelity stage diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (${diff.diffPixels}/${diff.total}, threshold ${CHANNEL_THRESHOLD}/channel, seed=1)`,
   );
   // Write the side-by-side composite (web | python) for visual inspection.
   const composite = await sideBySide(page, shot, ref);
   writeFileSync(STAGE_SIDEBYSIDE, Buffer.from(composite.split(',')[1], 'base64'));
-  // Informational this pass — the metric number is what matters.
+
+  // Informational, per G3's contract: the web engine's RNG sequence (mulberry32) is
+  // NOT the same as CPython's Mersenne Twister, and the engine consumes draws in a
+  // different order, so the two captures show the same structure with different entity
+  // states — states are NOT bit-aligned across implementations. Exact divergence
+  // points (see docs/FIDELITY.md): (1) PRNG algorithm, (2) draw order per frame, (3)
+  // pre-freeze input press timing is wall-clock (affects which frame the intro skip
+  // lands on, though the freeze pins the post-skip tick count). A hard gate becomes
+  // possible by replicating CPython's MT19937 getrandbits/_randbelow semantics in
+  // core/prng.ts (next-round candidate).
+  console.log(
+    `fidelity stage diff: ${(diff.fraction * 100).toFixed(2)}% pixels differ (informational)`,
+  );
 });

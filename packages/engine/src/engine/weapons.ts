@@ -172,17 +172,12 @@ export class BreakableWeapon extends Weapon {
 
 export class Stick extends BreakableWeapon {
   constructor(game: GameContext, pos: Vec2) {
-    super(game, pos, 'stick', randInt(12, 16));
+    super(game, pos, 'stick', game.rng.randint(12, 16));
   }
 }
 
 export class Chain extends BreakableWeapon {
   constructor(game: GameContext, pos: Vec2) {
-    super(game, pos, 'chain', randInt(18, 25));
+    super(game, pos, 'chain', game.rng.randint(18, 25));
   }
-}
-
-/** Random integer in [min, max]. */
-function randInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
 }

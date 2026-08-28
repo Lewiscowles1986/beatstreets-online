@@ -12,13 +12,13 @@ import { Attack } from './attack';
 
 export class EnemyVax extends Enemy {
   constructor(game: GameContext, char: Character, pos: Vec2, opts: { startTimer?: number } = {}) {
-    super(game, char, pos, { startTimer: opts.startTimer ?? 20, colourVariant: Math.floor(Math.random() * 3) });
+    super(game, char, pos, { startTimer: opts.startTimer ?? 20, colourVariant: game.rng.randint(0, 2) });
   }
 }
 
 export class EnemyHoodie extends Enemy {
   constructor(game: GameContext, char: Character, pos: Vec2, opts: { startTimer?: number } = {}) {
-    super(game, char, pos, { startTimer: opts.startTimer ?? 20, colourVariant: Math.floor(Math.random() * 3) });
+    super(game, char, pos, { startTimer: opts.startTimer ?? 20, colourVariant: game.rng.randint(0, 2) });
   }
 }
 
@@ -36,7 +36,7 @@ export class EnemyScooterboy extends Enemy {
     pos: Vec2,
     opts: { startTimer?: number } = {},
   ) {
-    super(game, char, pos, { startTimer: opts.startTimer ?? 20, colourVariant: Math.floor(Math.random() * 3) });
+    super(game, char, pos, { startTimer: opts.startTimer ?? 20, colourVariant: game.rng.randint(0, 2) });
     this.state = EnemyState.RIDING_SCOOTER;
     this.slowSpeed = char.scooter_speed_slow ?? 4;
     this.fastSpeed = char.scooter_speed_fast ?? 12;
@@ -62,7 +62,7 @@ export class EnemyScooterboy extends Enemy {
     if (this.scooterSpeed !== this.scooterTargetSpeed) {
       this.scooterSpeed = moveToward(this.scooterSpeed, this.scooterTargetSpeed, this.acceleration);
       this.frame += 1;
-    } else if (Math.random() < 1 / 30) {
+    } else if (this.game.rng.random() < 1 / 30) {
       this.scooterTargetSpeed = this.fastSpeed;
       this.frame = 0;
     }
@@ -205,7 +205,7 @@ export class EnemyPortal extends Enemy {
       const enemies = this.game.getEnemies();
       const existing = enemies.filter((e) => e instanceof EnemyPortal).length;
       if (existing < this.maxEnemies && this.spawnList.length > 0) {
-        const name = this.spawnList[Math.floor(Math.random() * this.spawnList.length)];
+        const name = this.game.rng.choice(this.spawnList);
         this.game.spawnEnemy(name, this.vpos.clone());
       }
       // Spawn rate increases over time.

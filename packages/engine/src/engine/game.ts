@@ -10,6 +10,7 @@ import { Barrel, Stick, Chain, Weapon } from './weapons';
 import { HealthPowerup, ExtraLifePowerup, Powerup } from './powerups';
 import { ControllerInput } from '../core/controller';
 import { Vec2, clamp } from '../core/math';
+import { Rng, systemRng } from '../core/prng';
 
 export interface Rect {
   left: number;
@@ -55,6 +56,8 @@ export class Game implements GameContext {
   outroActive = false;
   won = false;
   cheatState = new CheatState(0);
+  /** The shared RNG all randomness flows through (seeded for deterministic replays). */
+  rng: Rng;
 
   private stages: Stage[];
   private attacks: GameSpec['attacks'];
@@ -67,7 +70,9 @@ export class Game implements GameContext {
   constructor(
     spec: GameSpec,
     controls: ControllerInput,
+    opts: { rng?: Rng } = {},
   ) {
+    this.rng = opts.rng ?? systemRng;
     this.config = spec.config;
     this.attacks = spec.attacks;
     this.characters = spec.characters;
@@ -78,7 +83,7 @@ export class Game implements GameContext {
     this.boundary = { left: 0, top: this.config.MIN_WALK_Y, right: this.config.WIDTH - 1, bottom: this.config.HEIGHT - 1 };
     this.textActive = spec.config.INTRO_ENABLED;
     // Intro/outro story text (data-driven from story.json).
-    const stolen = this.story.stolen_items[Math.floor(Math.random() * this.story.stolen_items.length)] ?? '';
+    const stolen = this.rng.choice(this.story.stolen_items) ?? '';
     this.introText = this.story.intro_prefix + stolen + this.story.intro_suffix;
     this.outroText = this.story.outro;
     if (this.textActive) {

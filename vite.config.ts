@@ -28,6 +28,8 @@ export default defineConfig({
         title: 'title.html',
         // Dedicated e2e entry for the intro-text fidelity check (GOAL G5).
         intro: 'intro.html',
+        // Dedicated e2e entry for the seeded stage-1 live-gameplay fidelity check (GOAL G2/G3).
+        stage: 'stage.html',
       },
       output: {
         // Split the heavy, rarely-changing dependencies into their own chunks so the

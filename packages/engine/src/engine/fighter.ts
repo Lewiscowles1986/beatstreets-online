@@ -1,4 +1,5 @@
 import { Vec2, sign } from '../core/math';
+import { Rng } from '../core/prng';
 import { Attack } from './attack';
 import { GameConfig } from '../dsl/config';
 
@@ -7,6 +8,8 @@ export interface GameContext {
   config: GameConfig;
   boundary: { left: number; right: number; top: number; bottom: number };
   weapons: WeaponLike[];
+  /** The game's shared RNG — all randomness flows through this for determinism. */
+  rng: Rng;
   playSound(name: string, variants?: number): void;
   getEnemies(): Fighter[];
   getPlayer(): Fighter;
@@ -297,7 +300,7 @@ export abstract class Fighter {
             opponent.lives = 1;
             opponent.fallingState = FallingState.FALLING;
             opponent.frame = 0;
-            opponent.useDieAnimation = Math.random() < 0.5;
+            opponent.useDieAnimation = this.game.rng.random() < 0.5;
           }
 
           if (this.weapon && this.weapon.is_broken()) this.dropWeapon();
@@ -319,7 +322,7 @@ export abstract class Fighter {
       );
       this.health -= attack.strength;
       this.hitTimer = attack.strength * 8 * attack.stunTimeMultiplier;
-      this.hitFrame = Math.floor(Math.random() * 2);
+      this.hitFrame = this.game.rng.randint(0, 1);
       // Cancel an ongoing (non-flying-kick) attack.
       if (this.attackTimer > 0 && this.lastAttack && !this.lastAttack.flyingKick) this.attackTimer = 0;
       if (this.weapon) this.dropWeapon();
@@ -332,7 +335,7 @@ export abstract class Fighter {
         this.hitTimer = 0;
         if (this.health < 3) {
           this.health = 0;
-          this.useDieAnimation = Math.random() < 0.5;
+          this.useDieAnimation = this.game.rng.random() < 0.5;
         }
       }
       if (hitter instanceof Fighter && hitter.weapon) hitter.weapon.used?.();

@@ -14,6 +14,7 @@ export * from './dsl/game-spec';
 
 // Core primitives.
 export * from './core/math';
+export * from './core/prng';
 export * from './core/input';
 export * from './core/scene';
 export * from './core/controller';

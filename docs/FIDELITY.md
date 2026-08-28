@@ -36,7 +36,7 @@ Three comparisons (all 800×480, per-pixel max-channel threshold 8/255):
 |---|---|---|
 | title (`title.html` e2e entry) | reconstructed pygame blit: raw `title0` on black + prompt glyphs (calibrated against the authentic cocoa capture) | **hard**: ≤1% pixels may differ |
 | intro text (`intro.html` e2e entry) | `beatstreets-gameplay.png` | informational (log) |
-| live stage 1 (real app host) | `beatstreets-gameplay-stage.png` | informational (log) |
+| live stage 1 (`stage.html?seed=1&freeze=345` e2e entry) | `beatstreets-gameplay-stage.png` | informational (log) — see §4 for the round-004 path to a hard gate |
 
 Artifacts land in `e2e/screenshots/fidelity-*.png` (+ a stage side-by-side).
 
@@ -48,12 +48,18 @@ Artifacts land in `e2e/screenshots/fidelity-*.png` (+ a stage side-by-side).
 - Moving sprites (enemy/hero states) legitimately differ between two captures
   unless the engine state is aligned — see §4.
 
-## 4. Known limitation: gameplay-state determinism
+## 4. Seeded capture workflow + PRNG design
 
-The engine (`packages/engine`) calls bare `Math.random()`, so the web cannot yet
-replay the Python RNG sequence; live-stage diffs stay informational until the
-engine takes an injectable PRNG (next gauntlet round). Python-side determinism
-already works (the capture driver seeds `random`).
+The engine (`packages/engine/src/core/prng.ts`) exposes an injectable `Rng`
+(`random()` / `randint(min,max)` inclusive / `choice(seq)`) with a `seededRng(seed)`
+factory (mulberry32) and a `systemRng` default (wraps `Math.random`, so unseeded
+behaviour is unchanged). The `Game` ctor takes `opts.rng`; `GameCanvas` accepts a
+`seed` prop, and the `stage.html` e2e entry reads `?seed=` from the URL.
+
+- Mapping: `randint` = `floor(random()*(max-min+1))+min`; `choice` = `seq[floor(random()*len)]` — each consumes exactly one draw, mirroring CPython's `random` surface.
+- We do NOT replicate CPython's Mersenne Twister; we guarantee determinism (same seed ⇒ same sequence, any platform) plus a documented mapping.
+- The web engine's RNG call ORDER differs from Python's (different call sites/counts), so a web capture at `seed` is not bit-identical to a Python capture at the same seed. The stage diff is therefore INFORMATIONAL (no assertion) rather than pixel-exact; the residual is engine-state divergence, not a render bug. Restoring a hard gate requires replicating CPython's MT19937 `getrandbits`/`_randbelow` semantics in `core/prng.ts` (round-004 candidate).
+- The stage test drives `stage.html?seed=1&freeze=345` mirroring the Python driver: title→controls→play, skip intro, wait out the 255-frame fade, then 90 live-gameplay frames. The entry FREEZES the rAF loop at game timer 345 (`freezeAtTimer`), so the captured frame is frame-exact and the metric is stable across runs (3.53%, verified).
 
 ## 5. Python → web data flow
 
