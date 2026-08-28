@@ -335,7 +335,7 @@ export abstract class Fighter {
         this.hitTimer = 0;
         if (this.health < 3) {
           this.health = 0;
-          this.useDieAnimation = this.game.rng.random() < 0.5;
+          this.useDieAnimation = this.game.rng.randint(0, 1) === 0;
         }
       }
       if (hitter instanceof Fighter && hitter.weapon) hitter.weapon.used?.();

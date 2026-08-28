@@ -62,7 +62,7 @@ export class EnemyScooterboy extends Enemy {
     if (this.scooterSpeed !== this.scooterTargetSpeed) {
       this.scooterSpeed = moveToward(this.scooterSpeed, this.scooterTargetSpeed, this.acceleration);
       this.frame += 1;
-    } else if (this.game.rng.random() < 1 / 30) {
+    } else if (this.game.rng.randint(0, 30) === 0) {
       this.scooterTargetSpeed = this.fastSpeed;
       this.frame = 0;
     }

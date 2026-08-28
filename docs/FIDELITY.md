@@ -52,14 +52,52 @@ Artifacts land in `e2e/screenshots/fidelity-*.png` (+ a stage side-by-side).
 
 The engine (`packages/engine/src/core/prng.ts`) exposes an injectable `Rng`
 (`random()` / `randint(min,max)` inclusive / `choice(seq)`) with a `seededRng(seed)`
-factory (mulberry32) and a `systemRng` default (wraps `Math.random`, so unseeded
-behaviour is unchanged). The `Game` ctor takes `opts.rng`; `GameCanvas` accepts a
-`seed` prop, and the `stage.html` e2e entry reads `?seed=` from the URL.
+factory and a `systemRng` default (wraps `Math.random`, so unseeded behaviour is
+unchanged). The `Game` ctor takes `opts.rng`; `GameCanvas` accepts a `seed` prop, and
+the `stage.html` e2e entry reads `?seed=` from the URL.
 
-- Mapping: `randint` = `floor(random()*(max-min+1))+min`; `choice` = `seq[floor(random()*len)]` — each consumes exactly one draw, mirroring CPython's `random` surface.
-- We do NOT replicate CPython's Mersenne Twister; we guarantee determinism (same seed ⇒ same sequence, any platform) plus a documented mapping.
-- The web engine's RNG call ORDER differs from Python's (different call sites/counts), so a web capture at `seed` is not bit-identical to a Python capture at the same seed. The stage diff is therefore INFORMATIONAL (no assertion) rather than pixel-exact; the residual is engine-state divergence, not a render bug. Restoring a hard gate requires replicating CPython's MT19937 `getrandbits`/`_randbelow` semantics in `core/prng.ts` (round-004 candidate).
-- The stage test drives `stage.html?seed=1&freeze=345` mirroring the Python driver: title→controls→play, skip intro, wait out the 255-frame fade, then 90 live-gameplay frames. The entry FREEZES the rAF loop at game timer 345 (`freezeAtTimer`), so the captured frame is frame-exact and the metric is stable across runs (3.53%, verified).
+Since round 004, `seededRng` is an alias for `cpythonRng(seed)` — a faithful
+reimplementation of CPython's `random` module (Python 3.12), verified by unit tests
+that pin values captured from real CPython (`core/prng.test.ts`):
+
+- MT19937 core (624-word state, tempering, twist) mirroring `_randommodule.c`.
+- `random()` consumes TWO `genrand()` draws (`(g>>5)*67108864 + (g>>6)` scaled), as
+  CPython does.
+- `randint(a,b)` → `a + _randbelow(b-a+1)`; `choice(seq)` → `seq[_randbelow(len)]`.
+- `_randbelow(n)` → `k = n.bit_length(); r = getrandbits(k); while r >= n: r =
+  getrandbits(k)` — may consume multiple draws on rejection.
+- `getrandbits(k)` → for `k<=32` one `genrand() >> (32-k)`; for `k>32` multiple words.
+- Seeding mirrors `random_seed`: absolute value split into 32-bit little-endian words,
+  fed to `init_by_array` (empty key → `[0]`). Negative seeds use `abs`.
+
+A single draw is therefore bit-identical to CPython. The entity STATES still do NOT
+bit-align between a web capture and a Python capture at the same seed, because the web
+consumes RNG draws in a DIFFERENT ORDER/COUNT than the Python game:
+
+1. **Sound-variant draws.** Python advances the shared RNG on every sound via
+   `get_sound → randint(0, count-1)`. In the stage capture the off-screen EnemyVax
+   beating the idle player fires many hit-sound variant draws, and teletype draws
+   `randint(0,0)`. The web audio system never draws from `rng`, so its stream is far
+   behind Python's (measured: web made **3** draws by the freeze point vs Python's
+   **184**).
+2. **Intro/colour-variant order.** The web draws the intro `choice(stolen_items)`
+   first; Python draws enemy `colour_variant` before the stolen-item choice.
+3. **Per-frame entity/event ordering.** The web's `jumpToStage` skips the intro text
+   and 255-frame fade that the Python driver runs, so gameplay-frame tick alignment
+   differs even though both stage-1 configs are a single `EnemyVax@(1000,400)`.
+
+These are engine-logic / draw-order divergences (not PRNG correctness), so the stage
+gate stays **informational** — a hard gate over these unaligned states would be
+"picking a loose threshold to pass." The title gate (≤1%) and intro (informational)
+are unaffected. Restoring a hard stage gate requires matching the web's per-frame RNG
+consumption to Python's (sound draws, intro order, spawn timing) — a fidelity rewrite
+for a later round (see `docs/adversarial-gauntlet/004-cpython-prng-hard-stage-gate/`).
+
+The stage test drives `stage.html?seed=1&freeze=345` mirroring the Python driver:
+title→controls→play, skip intro, wait out the 255-frame fade, then 90 live-gameplay
+frames. The entry FREEZES the rAF loop at game timer 345 (`freezeAtTimer`), so the
+captured frame is frame-exact and the metric is stable across runs (3.50% with the
+CPython RNG, unchanged from the 3.53% mulberry32 baseline — see MEASUREMENT.md).
 
 ## 5. Python → web data flow
 
