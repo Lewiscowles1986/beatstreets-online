@@ -152,7 +152,7 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
   const overlayStyle: React.CSSProperties = { position: 'absolute', inset: 0, pointerEvents: 'none' };
 
   return (
-    <div style={{ position: 'relative', width, height }} data-scene={scene} data-timer={ov.timer} data-scroll={ov.scroll.toFixed(2)} data-herox={ov.heroX.toFixed(2)} data-atk={ov.atk} data-pick={ov.pick} data-intro-complete={introComplete ? '1' : undefined} data-frozen={ov.frozen ? '1' : undefined} data-pause-cursor={ov.pauseCursor} data-cheat-cursor={ov.cheatCursor} data-cheat-stage={ov.cheatStage} data-cheat-mode={ov.cheatStageSelect ? 'stage-select' : 'menu'} data-god-mode={ov.godMode ? '1' : undefined} data-one-punch={ov.onePunch ? '1' : undefined}>
+    <div style={{ position: 'relative', width, height }} data-scene={scene} data-timer={ov.timer} data-scroll={ov.scroll.toFixed(2)} data-herox={ov.heroX.toFixed(2)} data-atk={ov.atk} data-pick={ov.pick} data-text-active={ov.textActive ? '1' : undefined} data-intro-complete={introComplete ? '1' : undefined} data-frozen={ov.frozen ? '1' : undefined} data-pause-cursor={ov.pauseCursor} data-cheat-cursor={ov.cheatCursor} data-cheat-stage={ov.cheatStage} data-cheat-mode={ov.cheatStageSelect ? 'stage-select' : 'menu'} data-god-mode={ov.godMode ? '1' : undefined} data-one-punch={ov.onePunch ? '1' : undefined}>
       <canvas
         ref={canvasRef}
         role="application"
@@ -188,7 +188,7 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
       )}
       {scene === 'game-over' && (
         <div style={overlayStyle}>
-          <GameOverScreen width={width} height={height} won={ov.won} score={ov.score} />
+          <GameOverScreen width={width} height={height} won={ov.won} />
         </div>
       )}
       {scene === 'play' && ov.textActive && (
@@ -300,10 +300,12 @@ class Host {
     // Wrap with a deterministic action schedule (e2e action-frame captures). The
     // wrapper injects presses/holds at the exact live-gameplay frames the python
     // driver's --press/--hold schedule does, so the web replays the identical inputs.
-    if (pressSchedule?.length || holdSchedule?.length) {
-      this.scheduled = new ScheduledControls(this.controls, pressSchedule ?? [], holdSchedule ?? []);
-      this.controls = this.scheduled;
-    }
+    // ALWAYS installed (even with no schedule) so the harness intro auto-skip's
+    // `scheduled.press(0)` works on plain ?skip=1 URLs — without a wrapper it was a
+    // silent no-op and the intro teletype ran to completion, deferring the stage
+    // jump and every ?place= placement by the full text duration.
+    this.scheduled = new ScheduledControls(this.controls, pressSchedule ?? [], holdSchedule ?? []);
+    this.controls = this.scheduled;
     this.game = this.newGame();
 
     const title = new (class extends Scene {
@@ -334,12 +336,21 @@ class Host {
         super();
       }
       update() {
-        // Harness intro auto-skip (driver parity): press button 0 exactly once at the
-        // target game timer — the python driver skips at the very first play update,
-        // while the story text is still (near-)empty. Without this the browser waited
-        // for the full teletype, putting the stage jump ~730 timer-frames later and
-        // leaving the stage scroll ~380px short of the python reference.
-        if (this.h.autoSkipAt !== undefined && !this.h.autoSkipDone && this.h.game.timer >= this.h.autoSkipAt) {
+        // Harness intro auto-skip (driver parity): press button 0 once the intro
+        // teletype has fully typed. The python capture driver only skips after the
+        // story text completes, so the ~99 per-character teletype randint(0,0)
+        // draws ARE consumed and every later draw in the seeded stream matches
+        // python exactly. Skipping at timer 1 (the pre-020 behaviour) left those
+        // draws unconsumed and diverged the whole stream — the weapon-gate root
+        // cause (hoodie spawn y 370 instead of 374, punches whiffing).
+        const g = this.h.game;
+        const introFullyTyped = !g.textActive || g.displayedText.length >= g.currentText.length;
+        if (
+          this.h.autoSkipAt !== undefined &&
+          !this.h.autoSkipDone &&
+          introFullyTyped &&
+          g.timer >= this.h.autoSkipAt
+        ) {
           this.h.autoSkipDone = true;
           this.h.scheduled?.press(0);
         }
@@ -642,9 +653,17 @@ class Host {
     // Python draws fighters AND weapons in one list sorted by
     // `vpos.y + get_draw_order_offset()` (Player=+1, base weapon 0, barrel +2,
     // breakable weapon -50) — a weapon behind a fighter (lower y) must render
-    // behind it, so weapons cannot be a separate pass.
+    // behind it, so weapons cannot be a separate pass. Scooters (offset -1) and
+    // powerups (0) are in the SAME python list — drawing them in separate passes
+    // made a separated scooter paint over the fallen rider (020).
     const objs = (
-      [this.game.player, ...this.game.enemies, ...(this.game.weapons as unknown as Weapon[])] as (Fighter | Weapon)[]
+      [
+        this.game.player,
+        ...this.game.enemies,
+        ...(this.game.weapons as unknown as Weapon[]),
+        ...this.game.scooters,
+        ...this.game.powerups,
+      ] as (Fighter | Weapon | (typeof this.game.scooters)[number] | (typeof this.game.powerups)[number])[]
     ).sort((a, b) => a.vpos.y + a.getDrawOrderOffset() - (b.vpos.y + b.getDrawOrderOffset()));
     for (const o of objs) {
       if (o instanceof Weapon) {
@@ -652,17 +671,19 @@ class Host {
         if (sprite) render.blitSprite(sprite, o.vpos.x - scroll, o.vpos.y, weaponAnchor(o));
         continue;
       }
-      render.blitSprite(o.determineSprite(), o.vpos.x - scroll, o.vpos.y - o.heightAboveGround, ['center', o.anchorY]);
-      if (this.debug) render.drawCircle(o.vpos.x - scroll, o.vpos.y, 5, '#ff0');
-    }
-    // Powerups.
-    for (const p of this.game.powerups) {
-      const sprite = powerupSprite(p);
-      if (sprite) render.blitSprite(sprite, p.vpos.x - scroll, p.vpos.y);
-    }
-    // Lone scooters (riders knocked off).
-    for (const s of this.game.scooters) {
-      render.blitSprite(s.sprite(), s.vpos.x - scroll, s.vpos.y);
+      if ('sprite' in o && typeof o.sprite === 'function') {
+        // Lone scooter (riders knocked off): python anchor ("center", 256).
+        render.blitSprite(o.sprite(), o.vpos.x - scroll, o.vpos.y, ['center', 256]);
+        continue;
+      }
+      if (o instanceof Fighter) {
+        render.blitSprite(o.determineSprite(), o.vpos.x - scroll, o.vpos.y - o.heightAboveGround, ['center', o.anchorY]);
+        if (this.debug) render.drawCircle(o.vpos.x - scroll, o.vpos.y, 5, '#ff0');
+        continue;
+      }
+      // Powerups.
+      const sprite = powerupSprite(o);
+      if (sprite) render.blitSprite(sprite, o.vpos.x - scroll, o.vpos.y);
     }
     // Scrolling arrow: shows when the stage can still scroll forward.
     if (this.game.scrollOffset.x < this.game.maxScrollOffsetX && (this.game.timer / 30 | 0) % 2 === 0) {

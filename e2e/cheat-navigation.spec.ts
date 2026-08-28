@@ -33,12 +33,17 @@ async function driveToLivePlay(page: import('@playwright/test').Page) {
   await page.waitForSelector('[data-scene="controls"]', { timeout: 15000 });
   await page.keyboard.press('Space');
   await page.waitForSelector('[data-scene="play"]', { timeout: 15000 });
-  // ?skip=1 presses through the intro text; the post-skip fade then runs 255
-  // frames (timer 0..254). Live gameplay = timer >= 255 — the menu gates below
-  // operate on real play state either way, but waiting keeps the run uniform.
+  // ?skip=1 waits for the intro teletype to fully display (python driver parity),
+  // then presses through: the timer resets and the 255-frame fade runs before live
+  // gameplay. Wait for a live frame: timer >= 255 AND the intro text inactive — the
+  // pre-skip text phase also crosses timer 255, so text-active must be absent.
   await page.waitForFunction(() => {
     const el = document.querySelector('[data-timer]');
-    return el !== null && Number(el.getAttribute('data-timer')) >= 255;
+    return (
+      el !== null &&
+      Number(el.getAttribute('data-timer')) >= 255 &&
+      el.getAttribute('data-text-active') === null
+    );
   }, { timeout: 30000 });
   return canvas;
 }

@@ -42,6 +42,7 @@ export abstract class Enemy extends Fighter {
       animUpdateRate: 14,
       colourVariant: opts.colourVariant ?? null,
       anchorY: char.anchor_y ?? 256,
+      hitSound: char.hit_sound,
     });
     this.attacks = char.attacks ?? [];
     this.approachPlayerDistance = char.approach_player_distance ?? 85;
@@ -225,7 +226,7 @@ export abstract class Enemy extends Fighter {
     }
   }
 
-  private player(): Fighter {
+  protected player(): Fighter {
     // Enemies fight the player (index 0 of the enemies list from the game's POV is
     // the player; getEnemies returns only enemies, so expose player separately).
     return this.game.getPlayer();

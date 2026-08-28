@@ -29,8 +29,10 @@ export interface MenuOverlayProps {
  * A generic centred menu overlay (used for the pause menu and the cheat menu).
  * Presentational — the host owns the cursor and selection logic.
  *
- * Styled like the game's own text UI (Python `draw_text`): per-glyph font sprites,
- * white, centred, over a dim of the frozen world; the selected row is marked with
+ * Styled like the game's own fullscreen screens (Python `draw_text`): per-glyph font
+ * sprites, white, centred, on an opaque black screen — the same presentation as the
+ * CONTROLS screen (`screen.fill(black)`) and the fully-opaque GAME_OVER status
+ * bitmaps; the selected row is marked with
  * the green `xb_a` A-button sprite (the title prompt's inline symbol) rather than
  * a foreign highlight box. Hint strings must stick to the glyph charset
  * (uppercase, digits, `!'+,-.0123456789:=?`) — no lowercase, no `/`.
@@ -52,8 +54,9 @@ export function MenuOverlay({
     (ctx) => {
       const cfg = config();
       const render = new CanvasRender(ctx, width, height);
+      // Opaque fullscreen overlay — same language as the CONTROLS screen
+      // (`screen.fill(black)`) and the fully-opaque GAME_OVER status bitmaps.
       render.clear('#000');
-      render.fillRect(0, 0, width, height, 'rgba(0,0,0,0.7)');
       const glyphs = invertSpecialSymbols(cfg.SPECIAL_FONT_SYMBOLS);
       const draw = (text: string, x: number, y: number) =>
         render.drawGlyphText(text, x, y, { centered: true, specialSymbols: glyphs });

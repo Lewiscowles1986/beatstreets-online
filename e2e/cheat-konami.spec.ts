@@ -36,7 +36,11 @@ async function driveToLivePlay(page: import('@playwright/test').Page) {
   await page.waitForSelector('[data-scene="play"]', { timeout: 15000 });
   await page.waitForFunction(() => {
     const el = document.querySelector('[data-timer]');
-    return el !== null && Number(el.getAttribute('data-timer')) >= 255;
+    return (
+      el !== null &&
+      Number(el.getAttribute('data-timer')) >= 255 &&
+      el.getAttribute('data-text-active') === null
+    );
   }, { timeout: 60000 });
   return canvas;
 }

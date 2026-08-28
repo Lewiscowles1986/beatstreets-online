@@ -4,6 +4,7 @@ import { GameSpec } from '../dsl/game-spec';
 import { Fighter, GameContext, FallingState, WeaponLike } from './fighter';
 import { Player } from './player';
 import { Enemy } from './enemy';
+import { Character } from '../dsl/characters';
 import { EnemyVax, EnemyHoodie, EnemyScooterboy, EnemyBoss, EnemyPortal, Scooter } from './enemies';
 import { CheatState } from './cheat';
 import { Barrel, Stick, Chain, Weapon } from './weapons';
@@ -179,6 +180,24 @@ export class Game implements GameContext {
     }
   }
 
+  /**
+   * Build a portal-spawned enemy WITHOUT adding it to the level (python: the portal
+   * constructs the enemy class at the start of the generate animation — the ctor
+   * draws its own colour variant, `randint(0,2)` — and `game.spawn_enemy` adds it
+   * when the animation completes). The colour draw happens HERE, inside the seeded
+   * RNG stream, in the same order as Python.
+   */
+  createSpawnedEnemy(name: string, pos: Vec2): Enemy | null {
+    const colourVariant = isColourVariantEnemy(name) ? this.rng.randint(0, 2) : undefined;
+    return this.buildEnemy({ type: name, pos: [pos.x, pos.y] }, colourVariant);
+  }
+
+  /** Add an already-built enemy to the level (python `Game.spawn_enemy`). */
+  spawnEnemyObject(enemy: Enemy): void {
+    this.enemies.push(enemy);
+    enemy.spawned();
+  }
+
   // -- game flow -------------------------------------------------------
 
   nextStage(): void {
@@ -285,7 +304,13 @@ export class Game implements GameContext {
    */
   private buildEnemy(e: SpawnEntry, colourVariant?: number): Enemy | null {
     const name = e.type;
-    const char = this.characters.characters[name.toLowerCase().replace('enemy', '')];
+    // Python constructs EnemyPortal with no character entry — its EnemyPortal.__init__
+    // passes these literal stats to the Enemy base (health 15, anchor_y 340, half hit
+    // area 50x50, hit_sound portal_hit, default speed/stamina/score).
+    const char =
+      name === 'EnemyPortal'
+        ? PORTAL_CHARACTER
+        : this.characters.characters[name.toLowerCase().replace('enemy', '')];
     if (!char) return null;
     const pos = new Vec2(
       Number(e.pos[0]),
@@ -470,3 +495,22 @@ export class Game implements GameContext {
 function isColourVariantEnemy(type: string): boolean {
   return type === 'EnemyVax' || type === 'EnemyHoodie' || type === 'EnemyScooterboy' || type === 'EnemyBoss';
 }
+
+/**
+ * The portal has no characters entry in the Python game — `EnemyPortal.__init__`
+ * passes these literal stats to the Enemy base: sprite "portal", no attacks,
+ * health 15, default speed (1,1)/stamina 500/score 10, anchor_y 340, half hit
+ * area 50x50, hit_sound "portal_hit", default approach distance 85.
+ */
+const PORTAL_CHARACTER: Character = {
+  name: 'portal',
+  attacks: [],
+  health: 15,
+  speed: [1, 1],
+  stamina: 500,
+  anchor_y: 340,
+  half_hit_area: [50, 50],
+  score: 10,
+  approach_player_distance: 85,
+  hit_sound: 'portal_hit',
+};

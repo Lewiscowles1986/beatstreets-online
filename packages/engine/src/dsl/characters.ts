@@ -18,6 +18,8 @@ export const CharacterSchema = z.object({
   stamina: z.number().optional(),
   anchor_y: z.number().optional(),
   half_hit_area: z.array(z.number()).optional(),
+  /** Sound played when this character is hit (python Fighter hit_sound — the portal). */
+  hit_sound: z.string().optional(),
 });
 
 export type Character = z.infer<typeof CharacterSchema>;

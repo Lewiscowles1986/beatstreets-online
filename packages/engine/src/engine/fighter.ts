@@ -18,6 +18,11 @@ export interface GameContext {
   scrollX(): number;
   /** Spawn an enemy by name at a position (used by portals). */
   spawnEnemy(name: string, pos: Vec2): void;
+  /** Build a portal-spawned enemy WITHOUT adding it to the level (draws its colour
+   *  variant inside the seeded RNG stream — python constructs the enemy class). */
+  createSpawnedEnemy(name: string, pos: Vec2): import('./enemy').Enemy | null;
+  /** Add an already-built enemy to the level (python `Game.spawn_enemy`). */
+  spawnEnemyObject(enemy: import('./enemy').Enemy): void;
   /** Live cheat settings (god mode / one punch). */
   cheat(): { godMode: boolean; onePunch: boolean };
 }

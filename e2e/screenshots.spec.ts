@@ -38,6 +38,12 @@ for (const story of STORIES) {
     // Wait for the Storybook preview iframe to finish loading its story.
     const frame = page.frameLocator('iframe').first();
     await frame.locator('body').waitFor({ state: 'visible', timeout: 15000 });
+    // Game-host stories preload hundreds of sprite assets before the canvas
+    // appears — wait for the canvas itself, not just the loading placeholder.
+    if (story.id.startsWith('game-gamecanvas')) {
+      await frame.locator('canvas[aria-label^="Beat Streets game"]').waitFor({ timeout: 30000 });
+      await page.waitForTimeout(800);
+    }
     await page.waitForTimeout(1200);
     // Capture the whole page (story content + Storybook chrome).
     const shot = await page.screenshot({ path: `e2e/screenshots/${story.file}` });

@@ -6,6 +6,11 @@ export abstract class Powerup {
   vpos: Vec2;
   collected = false;
 
+  /** Python default draw-order offset (0) — powerups sort into the one world list. */
+  getDrawOrderOffset(): number {
+    return 0;
+  }
+
   protected constructor(
     protected game: GameContext,
     pos: Vec2,

@@ -20,8 +20,10 @@ export interface CheatOverlayProps {
 /**
  * The cheat menu overlay (Konami). Presentational — the host owns cursor/selection.
  *
- * Styled like the game's own text UI (Python `draw_text`): every string is drawn
- * with the per-glyph font sprites, centred, white on a dim over the frozen world.
+ * Styled like the game's own fullscreen screens (Python `draw_text`): every string
+ * is drawn with the per-glyph font sprites, centred, white on an opaque black
+ * screen — the same presentation as the CONTROLS screen (`screen.fill(black)`) and
+ * the fully-opaque GAME_OVER status bitmaps, rather than a foreign translucent dim.
  * The selected row is marked with the green `xb_a` A-button sprite (the same
  * inline symbol the title screen's "PRESS [A] OR Z" prompt uses) instead of a
  * foreign highlight box. Hint lines avoid characters the glyph font does not
@@ -43,8 +45,9 @@ export function CheatOverlay({
     (ctx) => {
       const cfg = config();
       const render = new CanvasRender(ctx, width, height);
+      // Opaque fullscreen overlay — same language as the CONTROLS screen
+      // (`screen.fill(black)`) and the fully-opaque GAME_OVER status bitmaps.
       render.clear('#000');
-      render.fillRect(0, 0, width, height, 'rgba(0,0,0,0.7)');
       const glyphs = invertSpecialSymbols(cfg.SPECIAL_FONT_SYMBOLS);
       const draw = (text: string, x: number, y: number) =>
         render.drawGlyphText(text, x, y, { centered: true, specialSymbols: glyphs });
