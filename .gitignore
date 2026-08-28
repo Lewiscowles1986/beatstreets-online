@@ -9,3 +9,6 @@ coverage/
 .npm-cache/
 packages/engine/dist/
 .hermes-home/
+# volatile fidelity run artifacts (regenerated on every gate run)
+e2e/screenshots/fidelity-metrics.json
+e2e/screenshots/fidelity-action-metrics.json
