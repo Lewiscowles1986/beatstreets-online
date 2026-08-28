@@ -81,21 +81,30 @@ export function GameCanvas({ stage = 1, width = 800, height = 480, debug = false
     const refresh = () => setOv(host.getOverlayState());
     host.setOnSceneChange(refresh);
     let raf = 0;
+    const freezeNow = () => setOv((prev) => ({ ...prev, frozen: true }));
     const step = () => {
-      host.tick();
-      refresh();
-      // Frame-exact freeze for e2e captures: after the tick that reaches the target
+      // Frame-exact freeze for e2e captures: after the update that reaches the target
       // post-intro timer, the canvas holds exactly that frame's render — stop the loop
-      // so no further tick (and no wall-clock jitter) can advance it before the
+      // so no further update (and no wall-clock jitter) can advance it before the
       // screenshot. The `!textActive` guard matters because the game timer ALSO counts
       // up while the intro story text is playing (python drives it to ~732 before the
       // skip resets the timer to 0); the freeze target is measured AFTER the intro is
       // skipped (fade window + live frames), so we must not freeze during the intro.
-      const ov = host.getOverlayState();
-      if (freezeAtTimer !== undefined && !ov.textActive && ov.timer >= freezeAtTimer) {
-        setOv((prev) => ({ ...prev, frozen: true }));
+      if (freezeAtTimer !== undefined) {
+        // Deterministic replay: batch updates per rAF (tickBatch) so the freeze does
+        // not depend on the runner's rAF rate — CI's software-GL chromium fired rAF
+        // far slower than local and the deep-freeze gates timed out there (016).
+        if (host.tickBatch(240, freezeAtTimer)) {
+          refresh();
+          freezeNow();
+          return;
+        }
+        refresh();
+        raf = requestAnimationFrame(step);
         return;
       }
+      host.tick();
+      refresh();
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
@@ -517,6 +526,36 @@ class Host {
   tick(): void {
     this.sceneManager.update();
     this.present();
+  }
+
+  private batchedUpdates = 0;
+
+  /**
+   * Freeze-harness fast path: advance up to `n` game updates per call WITHOUT the
+   * per-update presentation, then present once. The replay is deterministic per
+   * update count, so batching only changes wall-clock pacing — CI runners
+   * (software GL) fire rAF far slower than local machines, and one-update-per-rAF
+   * made the deep-freeze gates (freeze >= 544 needs ~1600 updates through the intro)
+   * exceed their 40s waits there (gauntlet 016). Returns true once the freeze target
+   * is reached, or after a 300k-update safety cap (fail loudly via a wrong frame
+   * rather than spinning forever).
+   */
+  tickBatch(n: number, freezeAt: number): boolean {
+    for (let i = 0; i < n; i++) {
+      this.sceneManager.update();
+      this.batchedUpdates += 1;
+      const ov = this.getOverlayState();
+      if (!ov.textActive && ov.timer >= freezeAt) {
+        this.present();
+        return true;
+      }
+      if (this.batchedUpdates > 300000) {
+        this.present();
+        return true;
+      }
+    }
+    this.present();
+    return false;
   }
 
   private drawWorld(render: Renderer): void {
