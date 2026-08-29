@@ -349,8 +349,15 @@ export class Game implements GameContext {
   /** Jump straight to a (1-based) stage — the stage-select cheat, and (with
    *  resetTimer:false) the test-harness hook mirroring the python capture driver's
    *  --stage: the driver jumps right after the intro skip WITHOUT touching the game
-   *  timer, so the fade/live-frame clock keeps running identically on both sides. */
-  jumpToStage(stageNumber: number, opts: { resetTimer?: boolean } = {}): void {
+   *  timer, so the fade/live-frame clock keeps running identically on both sides.
+   *
+   *  Player placement: an explicit `place` wins; the driver-parity path (resetTimer
+   *  false, no place) uses the python driver's literal 400,400; otherwise (the cheat
+   *  stage select and the sandbox stage knob) the character spawns at a SPECIFIC X
+   *  coordinate for the stage — 300px in front of the stage's first enemy/portal — so
+   *  picking a deep stage doesn't leave them at the stage-1 position with an empty
+   *  screen (the camera rush follows the character automatically). */
+  jumpToStage(stageNumber: number, opts: { resetTimer?: boolean; place?: { x: number; y: number } } = {}): void {
     const index = clamp(stageNumber, 1, this.stages.length) - 1;
     const stage = this.stages[index];
     this.stageIndex = index;
@@ -360,7 +367,25 @@ export class Game implements GameContext {
     if (opts.resetTimer !== false) this.timer = 0;
     this.weapons = [];
     this.createStageObjects(stage);
-    this.player.vpos = new Vec2(400, 400);
+    if (opts.place) {
+      this.player.vpos = new Vec2(opts.place.x, opts.place.y);
+    } else if (opts.resetTimer === false) {
+      this.player.vpos = new Vec2(400, 400);
+    } else {
+      const firstX = Number(stage.enemies[0]?.pos[0] ?? 1000);
+      this.player.vpos = new Vec2(Math.max(400, firstX - 300), 400);
+    }
+    // A deep-stage jump must also START the camera there: without the scroll warp the
+    // character sits off-screen (screen x > WIDTH) until the scroll rush catches up —
+    // several seconds of empty road in the sandbox/storybook. The driver-parity path
+    // (resetTimer:false) keeps the engine default 0 — the python driver does the same,
+    // and the harness's explicit place override can position freely.
+    if (opts.place || opts.resetTimer === undefined) {
+      const camX = Math.max(0, Math.min(this.player.vpos.x - 500, this.maxScrollOffsetX));
+      this.scrollOffset.x = camX;
+      this.boundary.left = camX;
+      this.boundary.right = camX + (this.config.WIDTH - 1);
+    }
     this.player.health = this.player.startHealth;
     this.player.stamina = this.player.maxStamina;
     this.player.fallingState = FallingState.STANDING;

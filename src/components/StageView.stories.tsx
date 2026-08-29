@@ -49,12 +49,13 @@ export const StageThreeBoss: Story = {
 };
 
 export const StageFourteenPortal: Story = {
-  args: { stage: 14, scrollOffsetX: 8000, width: 800, height: 480, debug: true },
+  args: { stage: 14, scrollOffsetX: 7700, width: 800, height: 480, debug: true },
   render,
 };
 
 export const StageFifteenPortal: Story = {
-  // The first portal stage (python stage 15, max_scroll_x 8400).
-  args: { stage: 15, scrollOffsetX: 8000, width: 800, height: 480, debug: true },
+  // The first portal stage (python stage 15, max_scroll_x 8400): scroll sits the
+  // portal (x 8900) mid-canvas instead of just off the right edge.
+  args: { stage: 15, scrollOffsetX: 8300, width: 800, height: 480, debug: true },
   render,
 };
