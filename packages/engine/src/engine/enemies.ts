@@ -272,7 +272,10 @@ export class EnemyPortal extends Enemy {
     this.spawnList = opts.spawns ?? [];
     this.spawnInterval = opts.spawnInterval ?? 120;
     this.spawnIntervalChange = opts.spawnIntervalChange ?? 0;
-    this.maxSpawnInterval = opts.maxSpawnInterval ?? 250;
+    // Python's literal default max_spawn_interval=600 — stages that pass no cap
+    // (26/29) keep slowing their spawns down for much longer than 250 frames, so
+    // defaulting to 250 made late-game portals pump enemies ~2.5x faster.
+    this.maxSpawnInterval = opts.maxSpawnInterval ?? 600;
     this.maxEnemies = opts.maxEnemies ?? 5;
     this.spawnTimer = this.spawnInterval;
   }
