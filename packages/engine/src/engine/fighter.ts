@@ -307,13 +307,18 @@ export abstract class Fighter {
 
           // ONE PUNCH cheat: any player->enemy hit kills the enemy outright. Skip
           // enemies that are already dead — a corpse must not be reset/killed again.
-          if (this.game.cheat().onePunch && this.isPlayer() && opponent.isEnemy() && !opponent.isPortal() && opponent.lives > 0) {
+          if (this.game.cheat().onePunch && this.isPlayer() && opponent.isEnemy() && opponent.lives > 0) {
             opponent.health = 0;
             opponent.stamina = 0;
-            opponent.lives = 1;
-            opponent.fallingState = FallingState.FALLING;
-            opponent.frame = 0;
-            opponent.useDieAnimation = this.game.rng.random() < 0.5;
+            // Portals don't fall (python's hit knockdown explicitly excludes
+            // EnemyPortal) — zeroing health is all they need: their own update
+            // enters PORTAL_EXPLODE (gauntlet 026: user report).
+            if (!opponent.isPortal()) {
+              opponent.lives = 1;
+              opponent.fallingState = FallingState.FALLING;
+              opponent.frame = 0;
+              opponent.useDieAnimation = this.game.rng.random() < 0.5;
+            }
           }
 
           if (this.weapon && this.weapon.is_broken()) this.dropWeapon();
