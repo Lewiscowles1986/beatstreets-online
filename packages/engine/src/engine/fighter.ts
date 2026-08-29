@@ -305,8 +305,9 @@ export abstract class Fighter {
         ) {
           opponent.hit(this, attack);
 
-          // ONE PUNCH cheat: any player->enemy hit kills the enemy outright.
-          if (this.game.cheat().onePunch && this.isPlayer() && opponent.isEnemy() && !opponent.isPortal()) {
+          // ONE PUNCH cheat: any player->enemy hit kills the enemy outright. Skip
+          // enemies that are already dead — a corpse must not be reset/killed again.
+          if (this.game.cheat().onePunch && this.isPlayer() && opponent.isEnemy() && !opponent.isPortal() && opponent.lives > 0) {
             opponent.health = 0;
             opponent.stamina = 0;
             opponent.lives = 1;
@@ -324,6 +325,11 @@ export abstract class Fighter {
   /** Take damage. hitter may be a Fighter or a thrown weapon (barrel). */
   hit(hitter: unknown, attack: Attack): void {
     const cfg = this.game.config;
+    // DEAD (out of lives): hard-inert. The dying fall is already unhittable via the
+    // falling-state guard, but residual windows (e.g. the one-punch cheat's post-hit
+    // reset, the 50-frame portal explosion) could still land damage/reactions on a
+    // corpse — a dead fighter takes nothing, ever (gauntlet 025: user report).
+    if (this.lives <= 0) return;
     if (this.fallingState !== FallingState.STANDING && this.fallingState !== FallingState.GRABBED) return;
     // GOD MODE cheat: the player never takes damage.
     if (this.game.cheat().godMode && this.isPlayer()) return;

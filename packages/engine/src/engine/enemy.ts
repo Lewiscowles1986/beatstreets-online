@@ -61,6 +61,12 @@ export abstract class Enemy extends Fighter {
   override update(): void {
     const player = this.game.getEnemies()[0]; // not used here; placeholder for parity
     void player;
+    // DEAD: keep only the falling/dying movement (super.update()); the AI state
+    // machine must not run — no decisions, no reactions (gauntlet 025).
+    if (this.lives <= 0) {
+      super.update();
+      return;
+    }
     switch (this.state) {
       case EnemyState.APPROACH_PLAYER:
         this.updateApproach();
